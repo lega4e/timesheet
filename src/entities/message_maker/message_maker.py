@@ -1,15 +1,9 @@
 import datetime as dt
-from functools import reduce
+from typing import Iterable, Callable, Any
 
-from telebot.types import MessageEntity
-
-from src.entities.event.event import Event, Place
-
-
-class Piece:
-  def __init__(self, text: str, url: str = None):
-    self.text = text
-    self.url = url
+from src.entities.event.event import Event
+from src.entities.message_maker.help import *
+from src.entities.message_maker.piece import *
 
 
 class MessageMaker:
@@ -21,8 +15,22 @@ class MessageMaker:
     return 'Приветствую тебя!'
 
   @staticmethod
-  def help() -> str:
-    return 'Помощь'
+  def help() -> (str, [MessageEntity]):
+    pieces = []
+    pieces.extend(help_head)
+    pieces.append(Piece('\n\n'))
+    pieces.extend(
+      reduce(lambda a, b: a + b,
+             insert_between(
+               [[Piece(com.preview + '\n'), Piece(com.long, type='italic')]
+                for com in commands],
+               [Piece('\n\n')],
+             ),
+             []),
+    )
+    pieces.append(Piece('\n\n'))
+    pieces.extend(help_tail)
+    return piece2string(pieces), piece2entities(pieces)
 
   @staticmethod
   def timesheetPost(events: [Event]) -> (str, [MessageEntity]):
@@ -67,32 +75,6 @@ def get_event_line(event: Event, url: str = None) -> [Piece]:
           Piece(event.desc, url=url)]
 
 
-def piece2string(pieces: [Piece]) -> str:
-  return ''.join([p.text for p in pieces])
-
-
-def piece2entities(pieces: [Piece]) -> [MessageEntity]:
-  pos = 0
-  entities = []
-  for piece in pieces:
-    if piece.url is not None:
-      entities.append(MessageEntity(
-        type='text_link',
-        offset=pos,
-        length=count_chars(piece.text),
-        url=piece.url,
-      ))
-    pos += count_chars(piece.text)
-  return entities
-
-
-def count_chars(text: str) -> int:
-  count = 0
-  for c in text:
-    count += 1 if len(bytes(c, encoding='utf-8')) < 4 else 2
-  return count
-  
-  
 def insert_between(values: [], term) -> []:
   if len(values) == 0:
     return values
@@ -100,8 +82,8 @@ def insert_between(values: [], term) -> []:
   for value in values[1:]:
     result.extend([term, value])
   return result
-  
-  
+
+
 def is_other_day(lhs: dt.datetime, rhs: dt.datetime):
   return (dt.datetime(year=lhs.year, month=lhs.month, day=lhs.day) !=
           dt.datetime(year=rhs.year, month=rhs.month, day=rhs.day))
@@ -117,3 +99,8 @@ def get_day(date: dt.datetime, weekday: bool = True) -> str:
 def get_start_finish_time(start: dt.datetime, finish: dt.datetime) -> str:
   return f'{start.strftime("%H:%M")}-{finish.strftime("%H:%M")}'
 
+
+def reduce(fun: Callable, iterable: Iterable, start: Any):
+  for value in iterable:
+    start = fun(start, value)
+  return start

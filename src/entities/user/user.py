@@ -85,7 +85,8 @@ class User(Notifier):
 
   def handleHelp(self):
     self._checkAndMakeFree()
-    self.send(self.msgMaker.help())
+    message, entities = self.msgMaker.help()
+    self.send(message=message, entities=entities)
 
 
   # event commands

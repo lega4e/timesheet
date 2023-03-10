@@ -2,6 +2,7 @@ from telebot.callback_data import CallbackData
 from telebot.types import BotCommand, CallbackQuery
 
 from src.domain.di import glob
+from src.entities.message_maker.help import commands
 
 di = glob()
 tg = di.tg()
@@ -133,52 +134,6 @@ def callback_query(call: CallbackQuery):
 
 def set_my_commands():
   tg.set_my_commands(commands=[
-    BotCommand(
-      command='help',
-      description='Показать помощь',
-    ),
-    BotCommand(
-      command='make_event',
-      description='Добавить новое событие в расписание',
-    ),
-    BotCommand(
-      command='show_events',
-      description='Посмотреть имеющиеся события в расписании',
-    ),
-    BotCommand(
-      command='edit_event',
-      description='Редактировать событие',
-    ),
-    BotCommand(
-      command='remove_event',
-      description='Удалить событие',
-    ),
-    BotCommand(
-      command='make_timesheet',
-      description='Создать новое расписание',
-    ),
-    BotCommand(
-      command='set_timesheet',
-      description='Подключиться к расписанию',
-    ),
-    BotCommand(
-      command='set_channel',
-      description='Установить канал',
-    ),
-    BotCommand(
-      command='post',
-      description='Запостить расписание в канал',
-    ),
-    BotCommand(
-      command='post_preview',
-      description='Показать расписание в чате',
-    ),
-    BotCommand(
-      command='translate',
-      description='Транслировать расписание в канал',
-    ),
-    BotCommand(
-      command='clear_translations',
-      description='Очистить все трансляции',
-    ),
+    BotCommand(command=com.name, description=com.short)
+    for com in commands
   ])
