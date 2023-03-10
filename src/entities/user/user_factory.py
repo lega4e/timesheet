@@ -4,7 +4,6 @@ from telebot import TeleBot
 
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_repository import EventRepository
-from src.entities.event.event_tg_maker import EventTgMaker
 from src.entities.timesheet.timesheet_repository import TimesheetRepository
 from src.entities.translation.translation_factory import TranslationFactory
 from src.entities.translation.translation_repository import TranslationRepo

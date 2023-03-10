@@ -17,9 +17,9 @@ class EventFactory:
     url: str = None,
     desc: str = None,
     creator: int = None, # (user chat_id)
-    id: int = None,
     serialized: {str: Any} = None,
   ) -> Event:
+    id = None
     if serialized is None:
       id = self.lira.get('event_counter', 0)
       id += 1

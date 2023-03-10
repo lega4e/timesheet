@@ -3,12 +3,13 @@ import time
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import MessageEntity, MenuButton, MenuButtonCommands
+from telebot.types import MessageEntity, MenuButton, MenuButtonCommands, CallbackQuery
 from typing import Optional, Any
 
 from src.entities.event.event import Event
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_repository import EventRepository
+from src.entities.event.event_tg_editor import EventTgEditor
 from src.entities.event.event_tg_maker import EventTgMaker
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.timesheet.timesheet import Timesheet
@@ -22,6 +23,7 @@ from src.utils.notifier import Notifier
 class UserState:
   FREE = 'FREE'
   CREATING_EVENT = 'CREATING_EVENT'
+  EDITING_EVENT = 'EDITING_EVENT'
 
 
 class User(Notifier):
@@ -63,6 +65,7 @@ class User(Notifier):
       chat=self.chat,
       on_created=self._onEventCreated,
     )
+    self.eventTgEditor: Optional[EventTgEditor] = None
     self._setChatMenuButton()
 
   def serialize(self) -> {str : Any}:
@@ -106,13 +109,25 @@ class User(Notifier):
   def handleShowEvents(self):
     if not self._checkTimesheet():
       return
-    events = list(self._findTimesheet().events())
+    events = sorted(list(self._findTimesheet().events()),
+                    key=lambda e: e.start)
     self.send('Пусто :('
               if len(events) == 0 else
-              '\n\n'.join(map(lambda e: str(e.__dict__), events)))
+              '\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
   def handleEditEvent(self, text):
-    self.send('Ещё не реализовано :(')
+    event = self._checkFindEventByTextId(text)
+    if event is None:
+      return
+    self.eventTgEditor = EventTgEditor(
+      tg=self.tg,
+      on_finish=self._onEventEditorFinish,
+      on_edit_field=event.notify,
+      event=event,
+      chat_id=self.chat,
+    )
+    self.state = UserState.EDITING_EVENT
+    self.eventTgEditor.onStart()
 
   def handleEditEventUrl(self, text: str):
     if not self._checkFree() or not self._checkTimesheet():
@@ -132,7 +147,13 @@ class User(Notifier):
     self.send('Успешно')
     
   def handleRemoveEvent(self, text):
-    self.send('Ещё не реализовано :(')
+    event = self._checkFindEventByTextId(text)
+    if event is None:
+      return
+    timesheet = self.timesheetRepository.find(self.timesheetId)
+    timesheet.removeEvent(event.id)
+    self.eventRepository.remove(event.id)
+    self.send('Мероприятие успешно удалено')
 
 
   # timesheet commands
@@ -181,7 +202,7 @@ class User(Notifier):
     if len(events) == 0:
       self.send('Нельзя запостить пустое расписание')
       return
-    message, entities = self.msgMaker.createTimesheetPost(events)
+    message, entities = self.msgMaker.timesheetPost(events)
     self.post(message, entities=entities)
     
   def handleTranslateTimesheet(self):
@@ -190,12 +211,13 @@ class User(Notifier):
         not self._checkChannel()):
       return
     tr = self.translationFactory.make(
-      event_predicat=lambda event: event.start >= dt.datetime.now() - dt.timedelta(weeks=1),
       chat_id=self.channel,
       timesheet_id=self.timesheetId,
     )
-    self.translationRepo.add(tr)
-    self.send('Успешно добавили трансляцию')
+    if self.translationRepo.add(tr):
+      self.send('Успешно добавили трансляцию')
+    else:
+      self._sendPostFail()
     
   def handleClearTranslations(self):
     if (not self._checkFree() or
@@ -214,15 +236,25 @@ class User(Notifier):
       self.send('Непонятно, что ты хочешь..? напиши /help')
     elif self.state == UserState.CREATING_EVENT:
       self.eventTgMaker.handleText(text)
+    elif self.state == UserState.EDITING_EVENT:
+      self.eventTgEditor.handleText(text)
     else:
       raise Exception(f'No switch case for {self.state}')
-  
-  
+    
+    
+  # CALLBACK QUERY
+  def callbackQuery(self, call: CallbackQuery):
+    if self.state == UserState.FREE:
+      self.tg.answer_callback_query(call.id, text='Непонятно..')
+    elif self.state == UserState.CREATING_EVENT:
+      self.eventTgMaker.callbackQuery(call)
+    elif self.state == UserState.EDITING_EVENT:
+      self.eventTgEditor.callbackQuery(call)
+
   # OTHER
   # methods
   def send(self, message, disable_web_page_preview=True):
-    print(f'send message {message} to chat {self.chat}')
-    self.logger.answer(chat_id=self.chat, text=message)
+    # self.logger.answer(chat_id=self.chat, text=message)
     self.tg.send_message(
       chat_id=self.chat,
       text=message,
@@ -232,7 +264,6 @@ class User(Notifier):
   def post(self, message, entities=None, disable_web_page_preview=True):
     if not self._checkChannel():
       return
-    print(f'post message {message}')
     try:
       self.tg.send_message(
         self.channel,
@@ -242,11 +273,7 @@ class User(Notifier):
       )
       self.send('Пост успешно сделан!')
     except ApiTelegramException as e:
-      self.send(f'\u26A0 Произошла ошибка при попытке сделать пост :(\n\n'
-                f'Возможные причины таковы:\n'
-                f'1) Не верно указано название канала (сейчас: {self.channel})\n'
-                f'2) Бот не является администратором канала\n\n'
-                f'Вот как выглядит сообщение об ошибки: {e}')
+      self._sendPostFail()
 
     
   # private
@@ -259,7 +286,10 @@ class User(Notifier):
     self.eventRepository.add(event)
     timesheet.addEvent(event.id)
     self.send('Мероприятие успешно добавлено в расписание!')
-    print(event.__dict__)
+    
+  def _onEventEditorFinish(self):
+    print('user event editor on finish')
+    self.state = UserState.FREE
     
   def _checkFree(self) -> bool:
     if self.state != UserState.FREE:
@@ -294,3 +324,26 @@ class User(Notifier):
       menu_button=MenuButtonCommands(type='commands'),
     )
     
+  def _checkFindEventByTextId(self, text) -> Optional[Event]:
+    try:
+      id = int(text)
+      if not self._checkTimesheet():
+        return None
+      timesheet = self.timesheetRepository.find(self.timesheetId)
+      events = list(timesheet.events(predicat=lambda e: e.id == id))
+      
+      if len(events) == 0:
+        self.send('Мероприятия с таким id не найдено. '
+                  'Используйте /show_events, чтобы посмотреть события')
+        return None
+      return events[0]
+    except:
+      self.send('Введите корректный id (см. /show_events)')
+      return None
+    
+  def _sendPostFail(self):
+    self.send(f'\u26A0 Произошла ошибка при попытке сделать пост :(\n\n'
+              f'Возможные причины таковы:\n'
+              f'1) Не верно указано название канала (сейчас: {self.channel})\n'
+              f'2) Бот не является администратором канала\n\n'
+              f'Вот как выглядит сообщение об ошибки: {e}')

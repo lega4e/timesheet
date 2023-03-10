@@ -117,6 +117,7 @@ class Di:
         tg=self.tg(),
         timesheet_repo=self.timesheetRepository(),
         message_maker=self.message_maker(),
+        logger=self.flogger(),
         lira=self.lira(),
       )
     return self._translationFactory

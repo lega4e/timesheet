@@ -17,25 +17,24 @@ class TranslationRepo:
     for _, tr in self._translations.values():
       tr.connect()
     
-  def add(self, translation: Translation):
+  def add(self, translation: Translation) -> bool:
     translation.addListener(self._onTranslationEmitDestroy,
                             event=Translation.EMIT_DESTROY)
-    translation.connect()
+    if not translation.connect():
+      return False
     lira_id = self.lira.put(translation.serialize(), cat='translation')
     self.lira.flush()
     self._translations[translation.id] = (lira_id, translation)
+    return True
     
   def removeTranslations(self, predicat: Callable):
-    print('REMOVE TRANSLATIONS')
     trs = [tr for _, tr in self._translations.values() if predicat(tr)]
     for tr in trs:
       tr.emitDestroy()
 
   def _onTranslationEmitDestroy(self, translation):
-    print(f'ON TRANS EMIT DEST {translation.id}')
     if self._translations.get(translation.id) is None:
       return
-    print('found')
     lira_id, translation = self._translations.get(translation.id)
     self.lira.pop(lira_id)
     self.lira.flush()
@@ -46,7 +45,6 @@ class TranslationRepo:
     trs = {}
     for lira_id in self.lira['translation']:
       tr = self.lira.get(id=lira_id)
-      print(tr)
       tr = self.translationFactory.make(serialized=tr)
       tr.addListener(self._onTranslationEmitDestroy,
                      event=Translation.EMIT_DESTROY)

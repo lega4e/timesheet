@@ -1,4 +1,5 @@
-from telebot.types import BotCommand
+from telebot.callback_data import CallbackData
+from telebot.types import BotCommand, CallbackQuery
 
 from src.domain.di import glob
 
@@ -68,8 +69,8 @@ def handle_edit_event_url(user, m, __=False):
 @tg.message_handler(commands=['remove_event'])
 @log_text
 @user_finder
-def handle_remove_event(user, _, __=False):
-  user.handleShowEvents(m.text[len('remove_event')+1:].strip())
+def handle_remove_event(user, m, __=False):
+  user.handleRemoveEvent(m.text[len('remove_event')+1:].strip())
 
 
 # timesheet commands
@@ -130,6 +131,11 @@ def handle_clear_translations(user, _, __=False):
 def handle_text(user, m, __=False):
   user.handleText(m.text)
   
+@tg.callback_query_handler(func=lambda call: True)
+def callback_query(call: CallbackQuery):
+  user = users.find(call.from_user.id)
+  user.callbackQuery(call)
+
 
 def set_my_commands():
   tg.set_my_commands(commands=[

@@ -13,7 +13,7 @@ class Timesheet(Notifier):
     event_repository: EventRepository,
     id: int = None,
     name: str = None,
-    events: {(int, Callable)} = None,
+    events: {int, Callable} = None,
     serialized: {str : Any} = None
   ):
     super().__init__()
@@ -25,9 +25,11 @@ class Timesheet(Notifier):
     else:
       self.id = int(serialized['id'])
       self.name = str(serialized['name'])
+      events = [self.eventRepository.find(id) for id in serialized['events']]
       self._events = {
-        id : self.eventRepository.find(id).addListener(self._onEventChanged)
-        for id in serialized['events']
+        event.id : event.addListener(self._onEventChanged)
+        for event in events
+        if event is not None
       }
       
   def serialize(self) -> {str : Any}:

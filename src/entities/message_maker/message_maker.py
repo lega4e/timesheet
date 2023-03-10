@@ -1,4 +1,5 @@
 import datetime as dt
+from functools import reduce
 
 from telebot.types import MessageEntity
 
@@ -24,12 +25,12 @@ class MessageMaker:
     return 'Помощь'
 
   @staticmethod
-  def createTimesheetPost(events: [Event]) -> (str, [MessageEntity]):
+  def timesheetPost(events: [Event]) -> (str, [MessageEntity]):
     assert(len(events) != 0)
     events = sorted(events, key=lambda e: e.start)
     head = Piece('Общий график мероприятий Энтузиастов Москвы')
     tail = Piece('Плоt t.me/spores_of_kindness\n'
-                 'Клуб Джерри Рубина vk.com/jerryrubinclub\n'
+                 'Джеррик vk.com/jerryrubinclub\n'
                  'Точка t.me/tochka_place\n'
                  'ТОДД t.me/toddmskinfo')
     paragraphs = [[head]]
@@ -52,13 +53,25 @@ class MessageMaker:
       result.extend([Piece('\n\n'), *p])
     return piece2string(result), piece2entities(result)
   
-  
+  @staticmethod
+  def eventPreview(event: Event) -> str:
+    line = ''.join([piece.text for piece in get_event_line(event)])
+    if event.url is not None:
+      line += f', {event.url}'
+    return f'{line[0]} #{event.id} {get_day(event.start, weekday=False)} {line[2:]}'
+
+
+def get_event_line(event: Event, url: str = None) -> [Piece]:
+  return [Piece(f'👉 {event.place.name} ' +
+                get_start_finish_time(event.start, event.finish) + ' '),
+          Piece(event.desc, url=url)]
+
+
 def piece2string(pieces: [Piece]) -> str:
   return ''.join([p.text for p in pieces])
 
 
 def piece2entities(pieces: [Piece]) -> [MessageEntity]:
-  # pos += 1 if len(bytes(text[i], encoding='utf-8')) < 4 else 2
   pos = 0
   entities = []
   for piece in pieces:
@@ -94,23 +107,13 @@ def is_other_day(lhs: dt.datetime, rhs: dt.datetime):
           dt.datetime(year=rhs.year, month=rhs.month, day=rhs.day))
   
   
-def get_day(date: dt.datetime) -> str:
-  return date.strftime('%d %B, %A')
-
-
-def get_place(place: Place) -> str:
-  return {
-    Place.PLOT : 'Плоt',
-    Place.TOCHKA : 'То4ка',
-    Place.BOILER_HOUSE: 'Котельная',
-  }.get(place.name) or place.name
+def get_day(date: dt.datetime, weekday: bool = True) -> str:
+  return (str(int(date.strftime('%d'))) + ' '+
+          date.strftime('%B') + (', ' + date.strftime('%A')
+                                 if weekday else
+                                 ''))
 
 
 def get_start_finish_time(start: dt.datetime, finish: dt.datetime) -> str:
   return f'{start.strftime("%H:%M")}-{finish.strftime("%H:%M")}'
 
-
-def get_event_line(event: Event, url: str = None) -> [Piece]:
-  return [Piece('👉 ' + get_place(event.place) + ' ' +
-                get_start_finish_time(event.start, event.finish) + ' '),
-          Piece(event.desc, url=url)]

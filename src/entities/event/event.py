@@ -5,12 +5,23 @@ from src.utils.notifier import Notifier
 
 
 class Place:
-  PLOT = 'PLOT'
-  TOCHKA = 'TOCHKA'
-  BOILER_HOUSE = 'BOILER_HOUSE'
+  PLOT = 'PLACE_PLOT'
+  TOCHKA = 'PLACE_TOCHKA'
+  BOILER_HOUSE = 'PLACE_BOILER_HOUSE'
+  TLL = 'PLACE_TLL'
+  TODD = 'PLACE_TODD'
+  DJERRIK = 'PLACE_DJERRIK'
   
   def __init__(self, name: str):
     self.name = name
+    
+    
+class EventField:
+  START_TIME = 'START_TIME_FIELD'
+  FINISH_TIME = 'FINISH_TIME_FIELD'
+  PLACE = 'PLACE_FIELD'
+  URL = 'URL_FIELD'
+  DESC = 'DESC_FIELD'
 
 
 class Event(Notifier):
@@ -35,13 +46,13 @@ class Event(Notifier):
       self.creator = creator
       self.id = id
     else:
-      self.start = serialized['start']
-      self.finish = serialized['finish']
-      self.place = serialized['place']
-      self.url = serialized['url']
-      self.desc = serialized['desc']
-      self.creator = serialized['creator']
-      self.id = serialized['id']
+      self.start = serialized.get('start')
+      self.finish = serialized.get('finish')
+      self.place = serialized.get('place')
+      self.url = serialized.get('url')
+      self.desc = serialized.get('desc')
+      self.creator = serialized.get('creator')
+      self.id = serialized.get('id')
 
   def serialize(self) -> {str: Any}:
     return {

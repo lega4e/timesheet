@@ -20,6 +20,6 @@ class Notifier:
     return dispose
   
   def notify(self, event = None, *args, **kwargs):
-    for e, callback in self._listeners.values():
+    for e, callback in copy(list(self._listeners.values())):
       if e == event:
         callback(self, *args, **kwargs)

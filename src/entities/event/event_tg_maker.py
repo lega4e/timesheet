@@ -1,10 +1,12 @@
-import datetime as dt
 import re
 
 from telebot import TeleBot
+from telebot.types import ReplyKeyboardRemove, CallbackQuery
 
+from src.entities.event.accessory import *
 from src.entities.event.event import Event, Place
 from src.entities.event.event_factory import EventFactory
+from src.entities.event.event_fields_parser import *
 
 
 class EventTgMakerState:
@@ -13,25 +15,27 @@ class EventTgMakerState:
   ENTER_PLACE = 'ENTER_PLACE'
   ENTER_URL = 'ENTER_URL'
   ENTER_DESC = 'ENTER_DESC'
-  
-  _list = [
+
+  list = [
+    ENTER_DESC,
     ENTER_START_TIME,
     ENTER_FINISH_TIME,
     ENTER_PLACE,
     ENTER_URL,
-    ENTER_DESC,
   ]
   
   @staticmethod
   def nextState(state):
-    index = EventTgMakerState._list.index(state)
-    if index + 1 < len(EventTgMakerState._list):
-      return EventTgMakerState._list[index + 1]
+    index = EventTgMakerState.list.index(state)
+    if index + 1 < len(EventTgMakerState.list):
+      return EventTgMakerState.list[index + 1]
     else:
       return None
 
 
 class EventTgMaker:
+  PASS_URL = 'PASS_URL'
+  
   def __init__(
     self,
     tg: TeleBot,
@@ -43,7 +47,12 @@ class EventTgMaker:
     self.eventFactory = event_factory
     self.chat = chat
     self.onCreated = on_created
-    self.state = EventTgMakerState.ENTER_START_TIME
+    self.proto = Event()
+    self.state = None
+    self.clear()
+    
+  def clear(self):
+    self.state = EventTgMakerState.list[0]
     self.proto = Event()
     
   def onStart(self):
@@ -58,13 +67,20 @@ class EventTgMaker:
       EventTgMakerState.ENTER_URL : self._handleEnterUrl,
       EventTgMakerState.ENTER_DESC : self._handleEnterDesc,
     }[self.state](text)
-  
+    
+  def callbackQuery(self, call: CallbackQuery):
+    if self.state == EventTgMakerState.ENTER_PLACE:
+      self._callbackQueryEnterPlace(call)
+    elif self.state == EventTgMakerState.ENTER_URL and call.data == EventTgMaker.PASS_URL:
+      self._callbackQueryEnterUrl(call)
+    else:
+      self.tg.answer_callback_query(call.id, 'Недоумеваю..')
+
   def _nextState(self):
     self.state = EventTgMakerState.nextState(self.state)
     if self.state is not None:
       self._executeBeforeState()
     else:
-      self.state = EventTgMakerState.ENTER_START_TIME
       self._send('Мероприятие создано!')
       if self.onCreated is not None:
         self.onCreated(
@@ -77,6 +93,7 @@ class EventTgMaker:
             creator=self.chat,
           )
         )
+      self.clear()
 
   def _executeBeforeState(self):
     {
@@ -91,38 +108,53 @@ class EventTgMaker:
     self._send('Введите дату и время начала мероприятия')
 
   def _beforeEnterFinishTime(self):
-    self._send('Введите дату и время окончания мероприятия')
+    self._send('Введите продолжительность мероприятия (в минутах)')
 
   def _beforeEnterPlace(self):
-    self._send('Введите место проведения мероприятия')
+    self.tg.send_message(
+      chat_id=self.chat,
+      text='Введите или выберите место проведения мероприятия',
+      reply_markup=place_markup(),
+    )
 
   def _beforeEnterUrl(self):
-    self._send('Введите ссылку на пост мероприятия')
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton('Пропустить', callback_data=EventTgMaker.PASS_URL))
+    self.tg.send_message(
+      chat_id=self.chat,
+      text='Введите ссылку на пост мероприятия',
+      reply_markup=markup,
+    )
 
   def _beforeEnterDesc(self):
-    self._send('Введите описание мероприятия')
+    self._send('Введите название мероприятия')
 
   def _handleEnterStartTime(self, text: str):
-    try:
-      self.proto.start = dt.datetime.strptime(text, '%d.%m.%Y %H:%M')
+    self.proto.start, error = parse_datetime(text)
+    if self.proto.start is not None:
+      self.proto.start = correct_datetime(self.proto.start,
+                                          isfuture=True,
+                                          delta=dt.timedelta(weeks=4))
       self._nextState()
-    except Exception as e:
-      print(e)
-      self._send('Не получилось распарсить, давай по новой')
+    else:
+      self._send(error)
 
   def _handleEnterFinishTime(self, text: str):
     try:
-      self.proto.finish = dt.datetime.strptime(text, '%d.%m.%Y %H:%M')
+      self.proto.finish = self.proto.start + dt.timedelta(minutes=int(text))
       self._nextState()
     except:
-      self._send('Не получилось распарсить, давай по новой')
+      self._send('Нужно число! число минут! Как "120", например, или "150"')
 
   def _handleEnterPlace(self, text: str):
     self.proto.place = Place(name=text)
     self._nextState()
 
   def _handleEnterUrl(self, text: str):
-    if re.match(r'^https?://.*\..+$', text):
+    if text.lower() in ['пропустить', 'пропуск']:
+      self.proto.url = None
+      self._nextState()
+    elif check_url(text):
       self.proto.url = text
       self._nextState()
     else:
@@ -132,5 +164,23 @@ class EventTgMaker:
     self.proto.desc = text
     self._nextState()
 
+  def _callbackQueryEnterUrl(self, call):
+    self.tg.answer_callback_query(call.id, 'Ввод URL пропущен')
+    self.proto.url = None
+    self._send('URL не введён, ну и ладно')
+    self._nextState()
+
+  def _callbackQueryEnterPlace(self, call):
+    self.proto.place = Place(name=place_to_str_map().get(call.data))
+    if self.proto.place.name is None:
+      self.tg.answer_callback_query(call.id, 'Что-то не так :(')
+      return
+    self.tg.answer_callback_query(call.id, self.proto.place.name)
+    self._send(f'Место мероприятия установлено: {self.proto.place.name}')
+    self._nextState()
+
   def _send(self, message):
-    self.tg.send_message(chat_id=self.chat, text=message)
+    self.tg.send_message(chat_id=self.chat,
+                         text=message,
+                         reply_markup=ReplyKeyboardRemove())
+
