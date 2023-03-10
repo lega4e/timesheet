@@ -96,6 +96,13 @@ def handle_post(user, _, __=False):
   user.handlePost()
 
 
+@tg.message_handler(commands=['post_preview'])
+@log_text
+@user_finder
+def handle_post(user, _, __=False):
+  user.handlePostPreview()
+
+
 @tg.message_handler(commands=['translate'])
 @log_text
 @user_finder
@@ -161,6 +168,10 @@ def set_my_commands():
     BotCommand(
       command='post',
       description='Запостить расписание в канал',
+    ),
+    BotCommand(
+      command='post_preview',
+      description='Показать расписание в чате',
     ),
     BotCommand(
       command='translate',

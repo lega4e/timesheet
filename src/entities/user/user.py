@@ -187,6 +187,18 @@ class User(Notifier):
     message, entities = self.msgMaker.timesheetPost(events)
     self.post(message, entities=entities)
     
+  def handlePostPreview(self):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet():
+      return
+    events = list(self._findTimesheet().events())
+    if len(events) == 0:
+      self.send('Нельзя запостить пустое расписание')
+      return
+    message, entities = self.msgMaker.timesheetPost(events)
+    self.send(message, entities=entities)
+
+  # translate commands
   def handleTranslate(self, text):
     self._checkAndMakeFree()
     if not self._checkTimesheet() or not self._checkChannel():
@@ -257,12 +269,13 @@ class User(Notifier):
 
 
   # OTHER
-  def send(self, message, disable_web_page_preview=True):
+  def send(self, message, disable_web_page_preview=True, entities=None):
     # self.logger.answer(chat_id=self.chat, text=message)
     self.tg.send_message(
       chat_id=self.chat,
       text=message,
       disable_web_page_preview=disable_web_page_preview,
+      entities=entities
     )
     
   def post(self, message, entities=None, disable_web_page_preview=True):

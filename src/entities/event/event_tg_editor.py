@@ -3,6 +3,7 @@ from typing import Callable
 from telebot import TeleBot
 from telebot.types import CallbackQuery, MessageEntity, InlineKeyboardMarkup, InlineKeyboardButton
 
+from src.entities.event.accessory import *
 from src.entities.event.event import Event, EventField, Place
 from src.entities.event.event_fields_parser import *
 
@@ -60,17 +61,24 @@ class EventTgEditor:
       self._send('Введите продолжительность мероприятия (в минутах)', call.id)
     elif call.data == self._cd(EventField.PLACE):
       self.state = EventField.PLACE
-      self._send('Введите место проведения мероприятия', call.id)
+      self._send('Введите место проведения мероприятия',
+                 call.id,
+                 markup=place_markup())
     elif call.data == self._cd(EventField.URL):
       self.state = EventField.URL
       self._send('Введите URL', call.id)
     elif call.data == self._cd(EventTgEditor.EXIT):
       self._send('Редактирование заверщено', call.id)
       self._finish()
+    elif self.state == EventField.PLACE:
+      place = place_to_str_map().get(call.data)
+      if place is not None:
+        self._handleEnterPlace(place)
+      else:
+        self.tg.answer_callback_query(callback_query_id=call.id, text='Что-то не понял..')
     else:
-      print(f'Неизвесный сигнал: {call.data}')
-      
-      
+      self.tg.answer_callback_query(callback_query_id=call.id, text='Что-то не понял..')
+
   # HANDLERS ENTER EVENT FIELD
   def _handleEnterStartTime(self, text: str):
     start, error = parse_datetime(text)
@@ -163,8 +171,10 @@ class EventTgEditor:
   def _cd(self, field):
     return f'{EventTgEditor.__name__}_{field}'
   
-  def _send(self, message, answer_callback_query_id: int = None):
-    self.tg.send_message(chat_id=self.chatId, text=message)
+  def _send(self, message, answer_callback_query_id: int = None, markup = None):
+    self.tg.send_message(chat_id=self.chatId,
+                         text=message,
+                         reply_markup=markup)
     if answer_callback_query_id is not None:
       self.tg.answer_callback_query(callback_query_id=answer_callback_query_id,
                                     text=message)

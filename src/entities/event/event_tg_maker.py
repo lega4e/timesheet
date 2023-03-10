@@ -180,7 +180,5 @@ class EventTgMaker:
     self._nextState()
 
   def _send(self, message):
-    self.tg.send_message(chat_id=self.chat,
-                         text=message,
-                         reply_markup=ReplyKeyboardRemove())
+    self.tg.send_message(chat_id=self.chat, text=message)
 
