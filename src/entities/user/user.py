@@ -80,34 +80,24 @@ class User(Notifier):
   # HANDLERS FOR TELEGRAM
   # common commands
   def handleStart(self):
-    if not self._checkFree():
-      return
-    m = self.tg.send_message(chat_id=self.chat, text='Start')
-    time.sleep(5)
-    self.tg.edit_message_text(
-      chat_id=self.chat,
-      text='Start!!!',
-      message_id=m.message_id,
-      entities=[
-        MessageEntity(type='text_link', offset=0, length=5, url='https://vk.com')
-      ],
-      disable_web_page_preview=True,
-    )
-    self.send(self.msgMaker.greeting())
+    self._checkAndMakeFree()
+    self.send('Приветствуют тебя, мастер, заведующий расписанием!')
 
   def handleHelp(self):
-    if not self._checkFree():
-      return
+    self._checkAndMakeFree()
     self.send(self.msgMaker.help())
 
 
   # event commands
   def handleMakeEvent(self):
-    if self._checkFree() and self._checkTimesheet():
-      self.state = UserState.CREATING_EVENT
-      self.eventTgMaker.onStart()
+    self._checkAndMakeFree()
+    if not self._checkTimesheet():
+      return
+    self.state = UserState.CREATING_EVENT
+    self.eventTgMaker.onStart()
   
   def handleShowEvents(self):
+    self._checkAndMakeFree()
     if not self._checkTimesheet():
       return
     events = sorted(list(self._findTimesheet().events()),
@@ -117,6 +107,7 @@ class User(Notifier):
               '\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
   def handleEditEvent(self, text):
+    self._checkAndMakeFree()
     event = self._checkFindEventByTextId(text)
     if event is None:
       return
@@ -131,6 +122,7 @@ class User(Notifier):
     self.eventTgEditor.onStart()
 
   def handleRemoveEvent(self, text):
+    self._checkAndMakeFree()
     event = self._checkFindEventByTextId(text)
     if event is None:
       return
@@ -142,6 +134,7 @@ class User(Notifier):
 
   # timesheet commands
   def handleMakeTimesheet(self, text: str = None):
+    self._checkAndMakeFree()
     if text is None or text == '':
       self.send('Нужно ввести название')
       return
@@ -150,30 +143,41 @@ class User(Notifier):
     self.send(f'Расписание "{text}" успешно создано')
     
   def handleSetTimesheet(self, text: str = None):
+    self._checkAndMakeFree()
     if text is None or text == '':
       self.send('Нужно ввести название расписания, к которому вы хотите подключиться')
       return
-    timesheets = [tm[1] for tm in self.timesheetRepository.timesheets.values() if tm[1].name == text]
+    timesheets = [tm[1]
+                  for tm in self.timesheetRepository.timesheets.values()
+                  if tm[1].name == text]
     if len(timesheets) == 0:
       self.send('Расписания с таким названием не найдено :(')
       return
     self.timesheetId = timesheets[0].id
     self.notify()
     self.send(f'Успешно выбрано расписание {text}')
-    
-    
+
+
   # post commands
   def handleSetChannel(self, text):
-    if text is None or text == '':
-      self.send('Нужно ввести идентификатор (логин) канала вида @xxx')
-      return
-    if text[0] != '@':
-      text = '@' + text
-    self.channel = text
-    self.notify()
+    self._checkAndMakeFree()
+    channel = None
+    m = re.match(r'@?(\w+)', text)
+    if m is not None:
+      channel = '@' + m.group(1)
+    else:
+      m = re.match(r'(https?://)?t\.me/(\w+)', text)
+      if m is not None:
+        channel = '@' + m.group(2)
+      else:
+        self.send('Нужно ввести идентификатор (логин) канала вида @xxx или ссылку на канал')
+        return
+    self.channel = channel
     self.send(f'Канал успешно установлен на "{self.channel}"')
+    self.notify()
   
   def handlePost(self):
+    self._checkAndMakeFree()
     if not self._checkTimesheet():
       return
     events = list(self._findTimesheet().events())
@@ -184,9 +188,8 @@ class User(Notifier):
     self.post(message, entities=entities)
     
   def handleTranslate(self, text):
-    if (not self._checkFree() or
-        not self._checkTimesheet() or
-        not self._checkChannel()):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet() or not self._checkChannel():
       return
     if text == '':
       tr = self.translationFactory.make(
@@ -222,9 +225,8 @@ class User(Notifier):
       self.send('Что-то пошло не так :(')
     
   def handleClearTranslations(self):
-    if (not self._checkFree() or
-        not self._checkTimesheet() or
-        not self._checkChannel()):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet() or not self._checkChannel():
       return
     self.translationRepo.removeTranslations(
       lambda tr: tr.chatId == self.channel or tr.chatId is None
@@ -253,8 +255,8 @@ class User(Notifier):
     elif self.state == UserState.EDITING_EVENT:
       self.eventTgEditor.callbackQuery(call)
 
+
   # OTHER
-  # methods
   def send(self, message, disable_web_page_preview=True):
     # self.logger.answer(chat_id=self.chat, text=message)
     self.tg.send_message(
@@ -274,7 +276,7 @@ class User(Notifier):
         disable_web_page_preview=disable_web_page_preview,
       )
       self.send('Пост успешно сделан!')
-    except ApiTelegramException as e:
+    except ApiTelegramException:
       self._sendPostFail()
 
     
@@ -292,11 +294,15 @@ class User(Notifier):
   def _onEventEditorFinish(self):
     self.state = UserState.FREE
     
-  def _checkFree(self) -> bool:
-    if self.state != UserState.FREE:
-      self.send('Невозможно исполинить эту команду')
-      return False
-    return True
+  def _checkAndMakeFree(self) -> bool:
+    if self.state == UserState.FREE:
+      return True
+    elif self.state == UserState.EDITING_EVENT:
+      self.send('Редактирование события завершено')
+    elif self.state == UserState.CREATING_EVENT:
+      self.send('Создание события прервано')
+    self.state = UserState.FREE
+    return False
   
   def _checkTimesheet(self) -> bool:
     if self.timesheetId is None:
