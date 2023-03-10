@@ -2,6 +2,7 @@ import traceback
 from typing import Any, Callable
 
 from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 from telebot.types import MessageEntity
 
 from src.entities.message_maker.message_maker import MessageMaker
@@ -77,7 +78,13 @@ class Translation(Notifier):
         self.emitDestroy()
         return False
     return True
-      
+  
+  def updatePost(self) -> bool:
+    timesheet = self.timesheetRepo.find(self.timesheetId)
+    if timesheet is None:
+      return False
+    return self._translate(timesheet)
+    
   def emitDestroy(self):
     print('(Translation.emitDestroy())')
     self.notify(Translation.EMIT_DESTROY)
@@ -87,11 +94,11 @@ class Translation(Notifier):
       self._dispose()
     self._dispose = None
     
-  def _translate(self, timesheet: Timesheet):
+  def _translate(self, timesheet: Timesheet) -> bool:
     print('TRANSLATE')
     message, entities = self._getMessage(timesheet)
     if message is None:
-      return
+      return False
     try:
       self.tg.edit_message_text(
         chat_id=self.chatId,
@@ -100,9 +107,14 @@ class Translation(Notifier):
         entities=entities,
         disable_web_page_preview=True,
       )
-    except Exception as e:
-      self.logger.error(traceback.extract_tb())
-      self.logger.error(e)
+      return True
+    except ApiTelegramException as e:
+      if 'message is not modified' in str(e):
+        return True
+      elif 'message to edit not found' in str(e):
+        self.emitDestroy()
+      self.logger.error(traceback.format_exc())
+      return False
     
   def _getMessage(self, timesheet: Timesheet) -> (str, [MessageEntity]):
     events = list(timesheet.events(predicat=self.eventPredicat))

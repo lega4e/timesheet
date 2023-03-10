@@ -99,8 +99,8 @@ def handle_post(user, _, __=False):
 @tg.message_handler(commands=['translate'])
 @log_text
 @user_finder
-def handle_translate(user, _, __=False):
-  user.handleTranslate()
+def handle_translate(user, m, __=False):
+  user.handleTranslate(m.text[len('translate')+1:].strip())
 
 
 @tg.message_handler(commands=['clear_translations'])

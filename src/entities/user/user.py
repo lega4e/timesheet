@@ -1,4 +1,5 @@
 import datetime as dt
+import re
 import time
 
 from telebot import TeleBot
@@ -182,19 +183,43 @@ class User(Notifier):
     message, entities = self.msgMaker.timesheetPost(events)
     self.post(message, entities=entities)
     
-  def handleTranslate(self):
+  def handleTranslate(self, text):
     if (not self._checkFree() or
         not self._checkTimesheet() or
         not self._checkChannel()):
       return
+    if text == '':
+      tr = self.translationFactory.make(
+        chat_id=self.channel,
+        timesheet_id=self.timesheetId,
+      )
+      if self.translationRepo.add(tr):
+        self.send('Успешно добавили трансляцию')
+      else:
+        self._sendPostFail()
+      return
+    exprs = [
+      r'https?://t\.me/[\w_]+/(\d+)',
+      r'(\d+)',
+    ]
+    message_id = None
+    for expr in exprs:
+      m = re.match(expr, text)
+      if m is not None:
+        message_id = int(m.group(1))
+    if message_id is None:
+      self.send('ID сообщения — это просто число или ссылка на пост!!')
+      return
     tr = self.translationFactory.make(
       chat_id=self.channel,
       timesheet_id=self.timesheetId,
+      message_id=message_id
     )
-    if self.translationRepo.add(tr):
-      self.send('Успешно добавили трансляцию')
+    if self.translationRepo.add(tr) and tr.updatePost():
+      self.send('Успешно добавили трансляцию в сообщение '
+                f'https://t.me/{self.channel[1:]}/{message_id}')
     else:
-      self._sendPostFail()
+      self.send('Что-то пошло не так :(')
     
   def handleClearTranslations(self):
     if (not self._checkFree() or
@@ -265,7 +290,6 @@ class User(Notifier):
     self.send('Мероприятие успешно добавлено в расписание!')
     
   def _onEventEditorFinish(self):
-    print('user event editor on finish')
     self.state = UserState.FREE
     
   def _checkFree(self) -> bool:
