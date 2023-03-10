@@ -59,13 +59,6 @@ def handle_edit_event(user, m, __=False):
   user.handleEditEvent(m.text[len('edit_event')+1:].strip())
 
 
-@tg.message_handler(commands=['edit_event_url'])
-@log_text
-@user_finder
-def handle_edit_event_url(user, m, __=False):
-  user.handleEditEventUrl(m.text[len('edit_event_url')+1:].strip())
-
-
 @tg.message_handler(commands=['remove_event'])
 @log_text
 @user_finder
@@ -99,22 +92,15 @@ def handle_set_channel(user, m, __=False):
 @tg.message_handler(commands=['post'])
 @log_text
 @user_finder
-def handle_post(user, m, __=False):
-  user.handlePost(m.text[len('post') + 1:].strip())
+def handle_post(user, _, __=False):
+  user.handlePost()
 
 
-@tg.message_handler(commands=['post_timesheet'])
+@tg.message_handler(commands=['translate'])
 @log_text
 @user_finder
-def handle_post_timesheet(user, _, __=False):
-  user.handlePostTimesheet()
-
-
-@tg.message_handler(commands=['translate_timesheet'])
-@log_text
-@user_finder
-def handle_translate_timesheet(user, _, __=False):
-  user.handleTranslateTimesheet()
+def handle_translate(user, _, __=False):
+  user.handleTranslate()
 
 
 @tg.message_handler(commands=['clear_translations'])
@@ -130,6 +116,7 @@ def handle_clear_translations(user, _, __=False):
 @user_finder
 def handle_text(user, m, __=False):
   user.handleText(m.text)
+  
   
 @tg.callback_query_handler(func=lambda call: True)
 def callback_query(call: CallbackQuery):
@@ -156,10 +143,6 @@ def set_my_commands():
       description='Редактировать событие',
     ),
     BotCommand(
-      command='edit_event_url',
-      description='Установить url события',
-    ),
-    BotCommand(
       command='remove_event',
       description='Удалить событие',
     ),
@@ -177,14 +160,10 @@ def set_my_commands():
     ),
     BotCommand(
       command='post',
-      description='Сделать пост в канал',
-    ),
-    BotCommand(
-      command='post_timesheet',
       description='Запостить расписание в канал',
     ),
     BotCommand(
-      command='translate_timesheet',
+      command='translate',
       description='Транслировать расписание в канал',
     ),
     BotCommand(

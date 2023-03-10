@@ -129,23 +129,6 @@ class User(Notifier):
     self.state = UserState.EDITING_EVENT
     self.eventTgEditor.onStart()
 
-  def handleEditEventUrl(self, text: str):
-    if not self._checkFree() or not self._checkTimesheet():
-      return
-    desc = text[:text.find(' ')].strip()
-    url = text[text.find(' '):].strip()
-    if desc == '' or url == '':
-      self.send('Недостаточно аргументов')
-      return
-    timesheet = self._findTimesheet()
-    events = list(timesheet.events(lambda e: desc in e.desc))
-    if len(events) == 0:
-      self.send('Не нашли :(')
-    event = events[0]
-    event.url = url
-    event.notify()
-    self.send('Успешно')
-    
   def handleRemoveEvent(self, text):
     event = self._checkFindEventByTextId(text)
     if event is None:
@@ -189,13 +172,7 @@ class User(Notifier):
     self.notify()
     self.send(f'Канал успешно установлен на "{self.channel}"')
   
-  def handlePost(self, text):
-    if text is None or text == '':
-      self.send('Нужно ввести сообщение для поста')
-      return
-    self.post(text)
-    
-  def handlePostTimesheet(self):
+  def handlePost(self):
     if not self._checkTimesheet():
       return
     events = list(self._findTimesheet().events())
@@ -205,7 +182,7 @@ class User(Notifier):
     message, entities = self.msgMaker.timesheetPost(events)
     self.post(message, entities=entities)
     
-  def handleTranslateTimesheet(self):
+  def handleTranslate(self):
     if (not self._checkFree() or
         not self._checkTimesheet() or
         not self._checkChannel()):
