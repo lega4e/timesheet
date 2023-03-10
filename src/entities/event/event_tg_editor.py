@@ -66,7 +66,8 @@ class EventTgEditor:
                  markup=place_markup())
     elif call.data == self._cd(EventField.URL):
       self.state = EventField.URL
-      self._send('Введите URL', call.id)
+      self._send('Введите URL или специальное значение "none" для удаления ссылки',
+                 call.id)
     elif call.data == self._cd(EventTgEditor.EXIT):
       self._send('Редактирование заверщено', call.id)
       self._finish()
@@ -102,7 +103,10 @@ class EventTgEditor:
     self._eventChanged()
   
   def _handleEnterUrl(self, text: str):
-    if check_url(text):
+    if text == 'none':
+      self.event.url = None
+      self._eventChanged()
+    elif check_url(text):
       self.event.url = text
       self._eventChanged()
     else:

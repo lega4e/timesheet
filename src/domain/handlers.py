@@ -116,7 +116,22 @@ def handle_translate(user, m, __=False):
 @user_finder
 def handle_clear_translations(user, _, __=False):
   user.handleClearTranslations()
-  
+
+
+# head and tail timesheet
+@tg.message_handler(commands=['set_timesheet_head'])
+@log_text
+@user_finder
+def handle_set_timesheet_head(user, _, __=False):
+  user.handleSetTimesheetHead()
+
+
+@tg.message_handler(commands=['set_timesheet_tail'])
+@log_text
+@user_finder
+def handle_set_timesheet_tail(user, _, __=False):
+  user.handleSetTimesheetTail()
+
 
 # other
 @tg.message_handler(content_types=['text'])

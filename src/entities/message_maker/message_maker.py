@@ -33,15 +33,21 @@ class MessageMaker:
     return piece2string(pieces), piece2entities(pieces)
 
   @staticmethod
-  def timesheetPost(events: [Event]) -> (str, [MessageEntity]):
+  def timesheetPost(
+    events: [Event],
+    head: [Piece] = None,
+    tail: [Piece] = None
+  ) -> (str, [MessageEntity]):
     assert(len(events) != 0)
     events = sorted(events, key=lambda e: e.start)
-    head = Piece('Общий график мероприятий Энтузиастов Москвы')
-    tail = Piece('Плоt t.me/spores_of_kindness\n'
-                 'Джеррик vk.com/jerryrubinclub\n'
-                 'Точка t.me/tochka_place\n'
-                 'ТОДД t.me/toddmskinfo')
-    paragraphs = [[head]]
+    # head = Piece('Общий график мероприятий Энтузиастов Москвы')
+    # tail = Piece('Плоt t.me/spores_of_kindness\n'
+    #              'Джеррик vk.com/jerryrubinclub\n'
+    #              'Точка t.me/tochka_place\n'
+    #              'ТОДД t.me/toddmskinfo')
+    paragraphs = []
+    if head is not None:
+      paragraphs.append(head)
     paragraph = []
     new_day = True
     for i in range(len(events)):
@@ -55,7 +61,8 @@ class MessageMaker:
       if i+1 == len(events) or is_other_day(events[i].start, events[i+1].start):
         paragraphs.append(paragraph)
         new_day = True
-    paragraphs.append([tail])
+    if tail is not None:
+      paragraphs.append(tail)
     result = [*paragraphs[0]]
     for p in paragraphs[1:]:
       result.extend([Piece('\n\n'), *p])

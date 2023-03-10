@@ -1,10 +1,8 @@
-import datetime as dt
 import re
-import time
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import MessageEntity, MenuButton, MenuButtonCommands, CallbackQuery
+from telebot.types import MenuButtonCommands, CallbackQuery, MessageEntity
 from typing import Optional, Any
 
 from src.entities.event.event import Event
@@ -13,6 +11,7 @@ from src.entities.event.event_repository import EventRepository
 from src.entities.event.event_tg_editor import EventTgEditor
 from src.entities.event.event_tg_maker import EventTgMaker
 from src.entities.message_maker.message_maker import MessageMaker
+from src.entities.message_maker.piece import Piece
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepository
 from src.entities.translation.translation_factory import TranslationFactory
@@ -25,6 +24,8 @@ class UserState:
   FREE = 'FREE'
   CREATING_EVENT = 'CREATING_EVENT'
   EDITING_EVENT = 'EDITING_EVENT'
+  ENTER_TIMESHEET_HEAD = 'ENTER_TIMESHEET_HEAD'
+  ENTER_TIMESHEET_TAIL = 'ENTER_TIMESHEET_TAIL'
 
 
 class User(Notifier):
@@ -158,11 +159,24 @@ class User(Notifier):
     self.notify()
     self.send(f'Успешно выбрано расписание {text}')
 
+  def handleSetTimesheetHead(self):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet():
+      return
+    self.state = UserState.ENTER_TIMESHEET_HEAD
+    self.send('Введите заголовок расписания')
+
+  def handleSetTimesheetTail(self):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet():
+      return
+    self.state = UserState.ENTER_TIMESHEET_TAIL
+    self.send('Введите подвал расписания')
+
 
   # post commands
   def handleSetChannel(self, text):
     self._checkAndMakeFree()
-    channel = None
     m = re.match(r'@?(\w+)', text)
     if m is not None:
       channel = '@' + m.group(1)
@@ -178,26 +192,14 @@ class User(Notifier):
     self.notify()
   
   def handlePost(self):
-    self._checkAndMakeFree()
-    if not self._checkTimesheet():
-      return
-    events = list(self._findTimesheet().events())
-    if len(events) == 0:
-      self.send('Нельзя запостить пустое расписание')
-      return
-    message, entities = self.msgMaker.timesheetPost(events)
-    self.post(message, entities=entities)
+    message, entities = self._makePost()
+    if message is not None:
+      self.post(message, entities=entities)
     
   def handlePostPreview(self):
-    self._checkAndMakeFree()
-    if not self._checkTimesheet():
-      return
-    events = list(self._findTimesheet().events())
-    if len(events) == 0:
-      self.send('Нельзя запостить пустое расписание')
-      return
-    message, entities = self.msgMaker.timesheetPost(events)
-    self.send(message, entities=entities)
+    message, entities = self._makePost()
+    if message is not None:
+      self.send(message, entities=entities)
 
   # translate commands
   def handleTranslate(self, text):
@@ -255,6 +257,22 @@ class User(Notifier):
       self.eventTgMaker.handleText(text)
     elif self.state == UserState.EDITING_EVENT:
       self.eventTgEditor.handleText(text)
+    elif self.state == UserState.ENTER_TIMESHEET_HEAD:
+      self.state = UserState.FREE
+      if not self._checkTimesheet():
+        return
+      self._findTimesheet().setHead(
+        [Piece(text)] if text.lower() != 'none' else None
+      )
+      self.send('Заголовок расписания успешно установлен!')
+    elif self.state == UserState.ENTER_TIMESHEET_TAIL:
+      self.state = UserState.FREE
+      if not self._checkTimesheet():
+        return
+      self._findTimesheet().setTail(
+        [Piece(text)] if text.lower() != 'none' else None
+      )
+      self.send('Подвал расписания успешно установлен!')
     else:
       raise Exception(f'No switch case for {self.state}')
     
@@ -290,8 +308,8 @@ class User(Notifier):
         disable_web_page_preview=disable_web_page_preview,
       )
       self.send('Пост успешно сделан!')
-    except ApiTelegramException:
-      self._sendPostFail()
+    except ApiTelegramException as e:
+      self._sendPostFail(e)
 
     
   # private
@@ -315,6 +333,10 @@ class User(Notifier):
       self.send('Редактирование события завершено')
     elif self.state == UserState.CREATING_EVENT:
       self.send('Создание события прервано')
+    elif self.state == UserState.ENTER_TIMESHEET_HEAD:
+      self.send('Ввод заголовка расписания прервано')
+    elif self.state == UserState.ENTER_TIMESHEET_TAIL:
+      self.send('Ввод подвала расписания прервано')
     self.state = UserState.FREE
     return False
   
@@ -362,9 +384,23 @@ class User(Notifier):
       self.send('Введите корректный id (см. /show_events)')
       return None
     
-  def _sendPostFail(self):
+  def _sendPostFail(self, e = None):
     self.send(f'\u26A0 Произошла ошибка при попытке сделать пост :(\n\n'
               f'Возможные причины таковы:\n'
               f'1) Не верно указано название канала (сейчас: {self.channel})\n'
-              f'2) Бот не является администратором канала\n\n'
-              f'Вот как выглядит сообщение об ошибки: {e}')
+              f'2) Бот не является администратором канала' +
+              ('' if e is None else
+              f'\n\nВот как выглядит сообщение об ошибки: {e}'))
+    
+  def _makePost(self) -> (str, [MessageEntity]):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet():
+      return None, None
+    timesheet = self._findTimesheet()
+    events = list(timesheet.events())
+    if len(events) == 0:
+      self.send('Нельзя запостить пустое расписание')
+      return None, None
+    return self.msgMaker.timesheetPost(events,
+                                       head=timesheet.head,
+                                       tail=timesheet.tail)

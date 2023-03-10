@@ -122,4 +122,6 @@ class Translation(Notifier):
       print('(Translation._getMessage) -> len(events) == 0 -> emitDestroy')
       self.emitDestroy()
       return None, None
-    return self.msgMaker.timesheetPost(events)
+    return self.msgMaker.timesheetPost(events,
+                                       head=timesheet.head,
+                                       tail=timesheet.tail)

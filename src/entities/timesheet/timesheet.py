@@ -2,6 +2,7 @@ from typing import Iterable, Any, Callable
 
 from src.entities.event.event import Event
 from src.entities.event.event_repository import EventRepository
+from src.entities.message_maker.piece import Piece
 from src.utils.notifier import Notifier
 
 
@@ -13,6 +14,9 @@ class Timesheet(Notifier):
     event_repository: EventRepository,
     id: int = None,
     name: str = None,
+    password: str = None,
+    head: [Piece] = None,
+    tail: [Piece] = None,
     events: {int, Callable} = None,
     serialized: {str : Any} = None
   ):
@@ -21,10 +25,16 @@ class Timesheet(Notifier):
     if serialized is None:
       self.id = id
       self.name = name
+      self.password = password
+      self.head = head
+      self.tail = tail
       self._events: {int: Callable} = events or dict()
     else:
-      self.id = int(serialized['id'])
-      self.name = str(serialized['name'])
+      self.id: int = serialized['id']
+      self.name: str = serialized['name']
+      self.password: str = serialized.get('password')
+      self.head: [Piece] = serialized.get('head')
+      self.tail: [Piece] = serialized.get('tail')
       events = [self.eventRepository.find(id) for id in serialized['events']]
       self._events = {
         event.id : event.addListener(self._onEventChanged)
@@ -36,8 +46,19 @@ class Timesheet(Notifier):
     return {
       'id': self.id,
       'name': self.name,
+      'password': self.password,
+      'head': self.head,
+      'tail': self.tail,
       'events': {id for id, callback in self._events.items()},
     }
+
+  def setHead(self, head: [Piece] = None):
+    self.head = head
+    self.notify()
+
+  def setTail(self, tail: [Piece] = None):
+    self.tail = tail
+    self.notify()
 
   def addEvent(self, id: int):
     self._events[id] = (self.eventRepository
