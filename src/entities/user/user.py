@@ -137,27 +137,36 @@ class User(Notifier):
   # timesheet commands
   def handleMakeTimesheet(self, text: str = None):
     self._checkAndMakeFree()
-    if text is None or text == '':
-      self.send('Нужно ввести название')
-      return
-    self.timesheetId = self.timesheetRepository.create(name=text).id
-    self.notify()
-    self.send(f'Расписание "{text}" успешно создано')
-    
-  def handleSetTimesheet(self, text: str = None):
-    self._checkAndMakeFree()
-    if text is None or text == '':
-      self.send('Нужно ввести название расписания, к которому вы хотите подключиться')
+    name, pswd = self._logpassCheck(text)
+    if name is None or pswd is None:
       return
     timesheets = [tm[1]
                   for tm in self.timesheetRepository.timesheets.values()
-                  if tm[1].name == text]
+                  if tm[1].name == name]
+    if len(timesheets) != 0:
+      self.send(f'Расписание с именем {name} уже есть :( давай по новой')
+      return
+    self.timesheetId = self.timesheetRepository.create(name=name,pswd=pswd).id
+    self.send(f'Расписание "{name}" с паролем "{pswd}" успешно создано')
+    self.notify()
+    
+  def handleSetTimesheet(self, text: str = None):
+    self._checkAndMakeFree()
+    name, pswd = self._logpassCheck(text)
+    if name is None or pswd is None:
+      return
+    timesheets = [tm[1]
+                  for tm in self.timesheetRepository.timesheets.values()
+                  if tm[1].name == name]
     if len(timesheets) == 0:
-      self.send('Расписания с таким названием не найдено :(')
+      self.send(f'Расписания с названием "{name}" не найдено :(')
+      return
+    if pswd != timesheets[0].password:
+      self.send('Пароль не подходит :(')
       return
     self.timesheetId = timesheets[0].id
+    self.send(f'Успешно выбрано расписание {name}')
     self.notify()
-    self.send(f'Успешно выбрано расписание {text}')
 
   def handleSetTimesheetHead(self):
     self._checkAndMakeFree()
@@ -172,6 +181,18 @@ class User(Notifier):
       return
     self.state = UserState.ENTER_TIMESHEET_TAIL
     self.send('Введите подвал расписания')
+
+  def handleShowTimesheetInfo(self):
+    self._checkAndMakeFree()
+    if not self._checkTimesheet():
+      return
+    self.send(f'Название: "{self._findTimesheet().name}"\n'
+              f'Пароль: "{self._findTimesheet().password}"')
+
+  def handleShowTimesheetList(self):
+    self._checkAndMakeFree()
+    names = [tm.name for _, tm in self.timesheetRepository.timesheets.values()]
+    self.send('Существующие расписания:\n' + '\n'.join(f'- {name}' for name in names))
 
 
   # post commands
@@ -404,3 +425,15 @@ class User(Notifier):
     return self.msgMaker.timesheetPost(events,
                                        head=timesheet.head,
                                        tail=timesheet.tail)
+  
+  def _logpassCheck(self, text) -> (str, str):
+    words = list(text.split())
+    if (len(words) != 2
+      or re.match(r'^\w+$', words[0]) is None
+      or re.match(r'^\w+$', words[1]) is None):
+      self.send('Нужно ввести только название и пароль; они могут'
+                'состоять только из латинских букв, цифр и символов'
+                'нижнего подчёркивания')
+      return None, None
+    return words[0], words[1]
+

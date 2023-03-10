@@ -13,6 +13,13 @@ def clear_category(cat: str):
   for id in lira[cat]:
     lira.pop(id)
   lira.flush()
+  
+def set_password():
+  for id in lira['timesheet']:
+    tm = lira.get(id)
+    tm['password'] = 'a6vbd3dks'
+    lira.put(tm, id=id, cat='timesheet')
+  lira.flush()
 
 
 def main():

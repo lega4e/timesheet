@@ -15,10 +15,10 @@ class TimesheetRepository:
     self.lira = lira
     self.timesheets = self._deserializeTimesheets()
   
-  def create(self, name: str) -> Timesheet:
+  def create(self, name: str, pswd: str) -> Timesheet:
     counter = self.lira.get('timesheet_counter', 0)
     counter += 1
-    timesheet = self.timesheetFactory.make(name=name, id=counter)
+    timesheet = self.timesheetFactory.make(name=name, password=pswd, id=counter)
     self.lira.put(counter, id='timesheet_counter', cat='id_counter')
     lira_id = self.lira.put(timesheet.serialize(), cat='timesheet')
     self.lira.flush()
