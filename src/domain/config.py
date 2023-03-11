@@ -20,6 +20,9 @@ class Config:
 
   def token(self) -> str:
     return self._paramOrNone('token', str)
+  
+  def locale(self) -> str:
+    return self._paramOrNone('locale', str)
 
   def _paramOrNone(self, name: str, tp):
     return Config._valueOrNone(self.data.get(name), tp)
