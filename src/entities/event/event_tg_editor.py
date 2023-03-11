@@ -7,7 +7,6 @@ from src.entities.event.accessory import *
 from src.entities.event.event import Event, EventField, Place
 from src.entities.event.event_fields_parser import *
 from src.entities.message_maker.accessory import send_message
-from src.entities.message_maker.emoji import emoji
 
 
 class EventTgEditor:
@@ -91,8 +90,10 @@ class EventTgEditor:
     start, error = parse_datetime(text)
     if start is not None:
       start = correct_datetime(start, isfuture=True, delta=dt.timedelta(weeks=3))
-      delta = self.event.finish - self.event.start
-      self.event.start, self.event.finish = start, start + delta
+      if self.event.finish is not None:
+        delta = self.event.finish - self.event.start
+        self.event.finish = start + delta
+      self.event.start = start
       self._eventChanged()
     else:
       self._send(error, warning=True)
@@ -146,7 +147,7 @@ class EventTgEditor:
   def _makeEventRepr(self) -> str:
     return (f'Название:   {self.event.desc}\n'
             f'Начало:     {self.event.start.strftime("%x %X")}\n'
-            f'Конец:      {self.event.finish.strftime("%x %X")}\n'
+            # f'Конец:      {self.event.finish.strftime("%x %X")}\n'
             f'Место/Орг.: {self.event.place.name}\n'
             f'URL:        {self.event.url}')
   
@@ -154,9 +155,9 @@ class EventTgEditor:
     markup = InlineKeyboardMarkup()
     markup.add(
       *[self._fieldToButton(f) for f in [EventField.DESC,
-                                         EventField.START_TIME,
-                                         EventField.FINISH_TIME]],
-      row_width=3
+                                         EventField.START_TIME]],
+                                         # EventField.FINISH_TIME]],
+      row_width=2
     )
     markup.add(
       *[self._fieldToButton(f) for f in [EventField.PLACE,

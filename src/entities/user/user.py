@@ -2,7 +2,7 @@ import re
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import MenuButtonCommands, CallbackQuery, MessageEntity
+from telebot.types import MenuButtonCommands, CallbackQuery
 from typing import Optional, Any
 
 from src.entities.event.event import Event
@@ -20,6 +20,7 @@ from src.entities.translation.translation_factory import TranslationFactory
 from src.entities.translation.translation_repository import TranslationRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
+from src.utils.utils import insert_between, reduce_list
 
 
 class UserState:
@@ -209,8 +210,18 @@ class User(Notifier):
   def handleShowTimesheetList(self):
     self._checkAndMakeFree()
     names = [tm.name for _, tm in self.timesheetRepository.timesheets.values()]
-    self.send('Существующие расписания:\n' +
-              '\n'.join(f'{Emoji.TIMESHEET_ITEM} {name}' for name in names))
+    self.send(
+      [Piece('Существующие расписания:\n')] +
+      reduce_list(
+        lambda a, b: a + b,
+        insert_between(
+          [[Piece(f'{Emoji.TIMESHEET_ITEM} '), Piece(f'{name}', type='code')]
+           for name in names],
+          [Piece('\n')],
+        ),
+        [],
+      )
+    )
 
 
   # post commands

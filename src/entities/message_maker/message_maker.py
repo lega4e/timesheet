@@ -1,9 +1,9 @@
 import datetime as dt
-from typing import Iterable, Callable, Any
 
 from src.entities.event.event import Event
 from src.entities.message_maker.help import *
 from src.entities.message_maker.piece import *
+from src.utils.utils import reduce_list, insert_between
 
 
 class MessageMaker:
@@ -20,13 +20,13 @@ class MessageMaker:
     pieces.extend(help_head)
     pieces.append(Piece('\n\n'))
     pieces.extend(
-      reduce(lambda a, b: a + b,
-             insert_between(
-               [[Piece(com.preview + '\n'), Piece(com.long, type='italic')]
-                for com in commands],
-               [Piece('\n\n')],
-             ),
-             []),
+      reduce_list(lambda a, b: a + b,
+                  insert_between(
+                    [[Piece(com.preview + '\n'), Piece(com.long, type='italic')]
+                     for com in commands],
+                    [Piece('\n\n')],
+                  ),
+                  []),
     )
     pieces.append(Piece('\n\n'))
     pieces.extend(help_tail)
@@ -77,15 +77,6 @@ def get_event_line(event: Event, url: str = None) -> [Piece]:
           Piece(event.desc, url=url)]
 
 
-def insert_between(values: [], term) -> []:
-  if len(values) == 0:
-    return values
-  result = [values[0]]
-  for value in values[1:]:
-    result.extend([term, value])
-  return result
-
-
 def is_other_day(lhs: dt.datetime, rhs: dt.datetime):
   return (dt.datetime(year=lhs.year, month=lhs.month, day=lhs.day) !=
           dt.datetime(year=rhs.year, month=rhs.month, day=rhs.day))
@@ -98,11 +89,5 @@ def get_day(date: dt.datetime, weekday: bool = True) -> str:
                                  ''))
 
 
-def get_start_finish_time(start: dt.datetime, finish: dt.datetime) -> str:
-  return f'{start.strftime("%H:%M")}-{finish.strftime("%H:%M")}'
-
-
-def reduce(fun: Callable, iterable: Iterable, start: Any):
-  for value in iterable:
-    start = fun(start, value)
-  return start
+def get_start_finish_time(start: dt.datetime, _: dt.datetime) -> str:
+  return f'{start.strftime("%H:%M")}'

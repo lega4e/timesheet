@@ -3,7 +3,6 @@ from typing import Any, Callable
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import MessageEntity
 
 from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.message_maker import MessageMaker

@@ -1,14 +1,11 @@
-import re
-
 from telebot import TeleBot
-from telebot.types import ReplyKeyboardRemove, CallbackQuery
+from telebot.types import CallbackQuery
 
 from src.entities.event.accessory import *
 from src.entities.event.event import Event, Place
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_fields_parser import *
 from src.entities.message_maker.accessory import send_message
-from src.entities.message_maker.emoji import emoji
 
 
 class EventTgMakerState:
@@ -21,7 +18,7 @@ class EventTgMakerState:
   list = [
     ENTER_DESC,
     ENTER_START_TIME,
-    ENTER_FINISH_TIME,
+    # ENTER_FINISH_TIME,
     ENTER_PLACE,
     ENTER_URL,
   ]
