@@ -15,7 +15,7 @@ class MessageMaker:
     return 'Приветствую тебя!'
 
   @staticmethod
-  def help() -> (str, [MessageEntity]):
+  def help() -> [Piece]:
     pieces = []
     pieces.extend(help_head)
     pieces.append(Piece('\n\n'))
@@ -30,21 +30,16 @@ class MessageMaker:
     )
     pieces.append(Piece('\n\n'))
     pieces.extend(help_tail)
-    return piece2string(pieces), piece2entities(pieces)
+    return pieces
 
   @staticmethod
   def timesheetPost(
     events: [Event],
     head: [Piece] = None,
     tail: [Piece] = None
-  ) -> (str, [MessageEntity]):
+  ) -> [Piece]:
     assert(len(events) != 0)
     events = sorted(events, key=lambda e: e.start)
-    # head = Piece('Общий график мероприятий Энтузиастов Москвы')
-    # tail = Piece('Плоt t.me/spores_of_kindness\n'
-    #              'Джеррик vk.com/jerryrubinclub\n'
-    #              'Точка t.me/tochka_place\n'
-    #              'ТОДД t.me/toddmskinfo')
     paragraphs = []
     if head is not None:
       paragraphs.append(head)
@@ -66,7 +61,7 @@ class MessageMaker:
     result = [*paragraphs[0]]
     for p in paragraphs[1:]:
       result.extend([Piece('\n\n'), *p])
-    return piece2string(result), piece2entities(result)
+    return result
   
   @staticmethod
   def eventPreview(event: Event) -> str:

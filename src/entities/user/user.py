@@ -10,7 +10,8 @@ from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_repository import EventRepository
 from src.entities.event.event_tg_editor import EventTgEditor
 from src.entities.event.event_tg_maker import EventTgMaker
-from src.entities.message_maker.emoji import emoji, Emoji
+from src.entities.message_maker.accessory import send_message
+from src.entities.message_maker.emoji import Emoji
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.message_maker.piece import Piece
 from src.entities.timesheet.timesheet import Timesheet
@@ -87,8 +88,8 @@ class User(Notifier):
 
   def handleHelp(self):
     self._checkAndMakeFree()
-    message, entities = self.msgMaker.help()
-    self.send(message=message, entities=entities)
+    message = self.msgMaker.help()
+    self.send(message=message)
 
 
   # event commands
@@ -146,10 +147,18 @@ class User(Notifier):
                   for tm in self.timesheetRepository.timesheets.values()
                   if tm[1].name == name]
     if len(timesheets) != 0:
-      self.send(f'Расписание с именем {name} уже есть :( давай по новой', fail=True)
+      self.send([Piece('Расписание с именем '),
+                 Piece(f'{name}', type='code'),
+                 Piece(' уже есть :( давай по новой')],
+                fail=True)
       return
     self.timesheetId = self.timesheetRepository.create(name=name,pswd=pswd).id
-    self.send(f'Расписание "{name}" с паролем "{pswd}" успешно создано', ok=True)
+    self.send([Piece('Расписание '),
+               Piece(f'{name}', type='code'),
+               Piece(' с паролем '),
+               Piece(f'{pswd}', type='code'),
+               Piece(' успешно создано')],
+              ok=True)
     self.notify()
     
   def handleSetTimesheet(self, text: str = None):
@@ -161,13 +170,18 @@ class User(Notifier):
                   for tm in self.timesheetRepository.timesheets.values()
                   if tm[1].name == name]
     if len(timesheets) == 0:
-      self.send(f'Расписания с названием "{name}" не найдено :(', fail=True)
+      self.send([Piece('Расписание с названием '),
+                 Piece(f'{name}', type='code'),
+                 Piece(' не найдено :(')],
+                fail=True)
       return
     if pswd != timesheets[0].password:
       self.send('Пароль не подходит :(', fail=True)
       return
     self.timesheetId = timesheets[0].id
-    self.send(f'Успешно выбрано расписание {name}', ok=True)
+    self.send([Piece('Успешно выбрано расписание '),
+               Piece(f'{name}', type='code')],
+              ok=True)
     self.notify()
 
   def handleSetTimesheetHead(self):
@@ -188,8 +202,9 @@ class User(Notifier):
     self._checkAndMakeFree()
     if not self._checkTimesheet():
       return
-    self.send(f'Название: "{self._findTimesheet().name}"\n'
-              f'Пароль: "{self._findTimesheet().password}"')
+    self.send([Piece(f'Название: "{self._findTimesheet().name}"\n'
+                     f'Пароль:   "{self._findTimesheet().password}"',
+                     type='code')])
 
   def handleShowTimesheetList(self):
     self._checkAndMakeFree()
@@ -201,31 +216,33 @@ class User(Notifier):
   # post commands
   def handleSetChannel(self, text):
     self._checkAndMakeFree()
-    m = re.match(r'@?(\w+)', text)
+    m = re.match(r'(https?://)?t\.me/(\w+)', text)
     if m is not None:
-      channel = '@' + m.group(1)
+      channel = '@' + m.group(2)
     else:
-      m = re.match(r'(https?://)?t\.me/(\w+)', text)
+      m = re.match(r'@?(\w+)', text)
       if m is not None:
-        channel = '@' + m.group(2)
+        channel = '@' + m.group(1)
       else:
-        self.send('Нужно ввести идентификатор (логин) канала '
-                  'вида @xxx или ссылку на канал',
+        self.send([Piece('Аргументом нужно добавить идентификатор (логин) канала вида '),
+                   Piece('@xxx', type='code'),
+                   Piece(' или ссылку на канал: '),
+                   Piece('/set_channel <логин или ссылка>', type='code')],
                   warning=True)
         return
     self.channel = channel
-    self.send(f'Канал успешно установлен на "{self.channel}"', ok=True)
+    self.send(f'Канал успешно установлен на {self.channel}', ok=True)
     self.notify()
   
   def handlePost(self):
-    message, entities = self._makePost()
+    message = self._makePost()
     if message is not None:
-      self.post(message, entities=entities)
+      self.post(message)
     
   def handlePostPreview(self):
-    message, entities = self._makePost()
+    message = self._makePost()
     if message is not None:
-      self.send(message, entities=entities)
+      self.send(message)
 
   # translate commands
   def handleTranslate(self, text):
@@ -242,26 +259,27 @@ class User(Notifier):
       else:
         self._sendPostFail()
       return
-    exprs = [
-      r'https?://t\.me/[\w_]+/(\d+)',
-      r'(\d+)',
-    ]
-    message_id = None
-    for expr in exprs:
-      m = re.match(expr, text)
+    channel = self.channel
+    m = re.match(r'(https?://)?t\.me/(\w+)/(\d+)', text)
+    if m is not None:
+      channel = '@' + m.group(2)
+      message_id = int(m.group(3))
+    else:
+      m = re.match(r'\d+', text)
       if m is not None:
-        message_id = int(m.group(1))
-    if message_id is None:
-      self.send('ID сообщения — это просто число или ссылка на пост!!', warning=True)
-      return
+        message_id = int(m.group(0))
+      else:
+        self.send('ID сообщения — это просто число или ссылка на пост!!', warning=True)
+        return
+    print(channel, message_id)
     tr = self.translationFactory.make(
-      chat_id=self.channel,
+      chat_id=channel,
       timesheet_id=self.timesheetId,
       message_id=message_id
     )
     if self.translationRepo.add(tr) and tr.updatePost():
       self.send('Успешно добавили трансляцию в сообщение '
-                f'https://t.me/{self.channel[1:]}/{message_id}',
+                f'https://t.me/{channel[1:]}/{message_id}',
                 ok=True)
     else:
       self.send('Что-то пошло не так :(', fail=True)
@@ -319,29 +337,30 @@ class User(Notifier):
     self,
     message,
     disable_web_page_preview=True,
-    entities=None,
     edit=False,
     warning=False,
     ok=False,
     fail=False,
   ):
-    # self.logger.answer(chat_id=self.chat, text=message)
-    message = emoji(message, edit, warning, ok, fail)
-    self.tg.send_message(
+    send_message(
+      tg=self.tg,
       chat_id=self.chat,
-      text=message,
+      message=message,
       disable_web_page_preview=disable_web_page_preview,
-      entities=entities
+      edit=edit,
+      warning=warning,
+      ok=ok,
+      fail=fail,
     )
     
-  def post(self, message, entities=None, disable_web_page_preview=True):
+  def post(self, message, disable_web_page_preview=True):
     if not self._checkChannel():
       return
     try:
-      self.tg.send_message(
-        self.channel,
-        message,
-        entities=entities,
+      send_message(
+        tg=self.tg,
+        chat_id=self.channel,
+        message=message,
         disable_web_page_preview=disable_web_page_preview,
       )
       self.send('Пост успешно сделан!', ok=True)
@@ -432,15 +451,15 @@ class User(Notifier):
               f'\n\nВот как выглядит сообщение об ошибки: {e}'),
               warning=True)
     
-  def _makePost(self) -> (str, [MessageEntity]):
+  def _makePost(self) -> [Piece]:
     self._checkAndMakeFree()
     if not self._checkTimesheet():
-      return None, None
+      return None
     timesheet = self._findTimesheet()
     events = list(timesheet.events())
     if len(events) == 0:
       self.send('Нельзя запостить пустое расписание', warning=True)
-      return None, None
+      return None
     return self.msgMaker.timesheetPost(events,
                                        head=timesheet.head,
                                        tail=timesheet.tail)

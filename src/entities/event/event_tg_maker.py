@@ -7,6 +7,7 @@ from src.entities.event.accessory import *
 from src.entities.event.event import Event, Place
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_fields_parser import *
+from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.emoji import emoji
 
 
@@ -183,6 +184,13 @@ class EventTgMaker:
     fail=False,
     reply_markup=None
   ):
-    message = emoji(message, edit, warning, ok, fail)
-    self.tg.send_message(chat_id=self.chat, text=message, reply_markup=reply_markup)
-
+    send_message(
+      tg=self.tg,
+      chat_id=self.chat,
+      message=message,
+      edit=edit,
+      warning=warning,
+      ok=ok,
+      fail=fail,
+      reply_markup=reply_markup,
+    )

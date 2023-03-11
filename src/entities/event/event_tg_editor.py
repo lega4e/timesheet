@@ -1,11 +1,12 @@
 from typing import Callable
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery, MessageEntity, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import CallbackQuery, MessageEntity
 
 from src.entities.event.accessory import *
 from src.entities.event.event import Event, EventField, Place
 from src.entities.event.event_fields_parser import *
+from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.emoji import emoji
 
 
@@ -74,7 +75,7 @@ class EventTgEditor:
                  call.id,
                  edit=True)
     elif call.data == self._cd(EventTgEditor.EXIT):
-      self._send('Редактирование заверщено', call.id, ok=True)
+      self._send('Редактирование завершено', call.id, ok=True)
       self._finish()
     elif self.state == EventField.PLACE:
       place = place_to_str_map().get(call.data)
@@ -191,20 +192,25 @@ class EventTgEditor:
     ok = False,
     fail = False,
   ):
-    message = emoji(message, edit, warning, ok, fail)
-    self.tg.send_message(chat_id=self.chatId,
-                         text=message,
-                         reply_markup=markup)
-    if answer_callback_query_id is not None:
-      self.tg.answer_callback_query(callback_query_id=answer_callback_query_id,
-                                    text=message)
+    send_message(
+      tg=self.tg,
+      chat_id=self.chatId,
+      message=message,
+      reply_markup=markup,
+      answer_callback_query_id=answer_callback_query_id,
+      answer_callback_query_text=message,
+      edit=edit,
+      warning=warning,
+      ok=ok,
+      fail=fail,
+    )
 
   def _eventChanged(self):
     self._send('Успех!', ok=True)
     self.state = None
-    self._translate()
     if self.onEdit is not None:
       self.onEdit()
+    self._translate()
 
   def _finish(self):
     self.clear()

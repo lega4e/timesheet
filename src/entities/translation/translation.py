@@ -5,7 +5,9 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 from telebot.types import MessageEntity
 
+from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.message_maker import MessageMaker
+from src.entities.message_maker.piece import Piece, piece2string, piece2entities
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepository
 from src.utils.logger.logger import FLogger
@@ -63,15 +65,15 @@ class Translation(Notifier):
       self._translate, event=[None, Timesheet.EVENT_CHANGED]
     )
     if self.messageId is None:
-      message, entities = self._getMessage(timesheet)
+      message = self._getMessage(timesheet)
       if message is None:
         self.emitDestroy()
         return False
       try:
-        self.messageId = self.tg.send_message(
+        self.messageId = send_message(
+          tg=self.tg,
           chat_id=self.chatId,
-          text=message,
-          entities=entities,
+          message=message,
           disable_web_page_preview=True,
         ).message_id
       except:
@@ -96,7 +98,10 @@ class Translation(Notifier):
     
   def _translate(self, timesheet: Timesheet) -> bool:
     print('TRANSLATE')
-    message, entities = self._getMessage(timesheet)
+    pieces = self._getMessage(timesheet)
+    if pieces is None:
+      return False
+    message, entities = piece2string(pieces), piece2entities(pieces)
     if message is None:
       return False
     try:
@@ -116,12 +121,12 @@ class Translation(Notifier):
       self.logger.error(traceback.format_exc())
       return False
     
-  def _getMessage(self, timesheet: Timesheet) -> (str, [MessageEntity]):
+  def _getMessage(self, timesheet: Timesheet) -> [Piece]:
     events = list(timesheet.events(predicat=self.eventPredicat))
     if len(events) == 0:
       print('(Translation._getMessage) -> len(events) == 0 -> emitDestroy')
       self.emitDestroy()
-      return None, None
+      return None
     return self.msgMaker.timesheetPost(events,
                                        head=timesheet.head,
                                        tail=timesheet.tail)
