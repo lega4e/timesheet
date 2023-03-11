@@ -7,6 +7,7 @@ from src.entities.event.accessory import *
 from src.entities.event.event import Event, Place
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_fields_parser import *
+from src.entities.message_maker.emoji import emoji
 
 
 class EventTgMakerState:
@@ -56,7 +57,7 @@ class EventTgMaker:
     self.proto = Event()
     
   def onStart(self):
-    self._send('Создаём мероприятие!!!')
+    self.clear()
     self._executeBeforeState()
   
   def handleText(self, text):
@@ -81,7 +82,6 @@ class EventTgMaker:
     if self.state is not None:
       self._executeBeforeState()
     else:
-      self._send('Мероприятие создано!')
       if self.onCreated is not None:
         self.onCreated(
           self.eventFactory.make(
@@ -105,29 +105,23 @@ class EventTgMaker:
     }[self.state]()
 
   def _beforeEnterStartTime(self):
-    self._send('Введите дату и время начала мероприятия')
+    self._send('Введите дату и время начала мероприятия', edit=True)
 
   def _beforeEnterFinishTime(self):
-    self._send('Введите продолжительность мероприятия (в минутах)')
+    self._send('Введите продолжительность мероприятия (в минутах)', edit=True)
 
   def _beforeEnterPlace(self):
-    self.tg.send_message(
-      chat_id=self.chat,
-      text='Введите или выберите место проведения мероприятия',
-      reply_markup=place_markup(),
-    )
+    self._send('Введите или выберите место проведения мероприятия',
+               edit=True,
+               reply_markup=place_markup())
 
   def _beforeEnterUrl(self):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton('Пропустить', callback_data=EventTgMaker.PASS_URL))
-    self.tg.send_message(
-      chat_id=self.chat,
-      text='Введите ссылку на пост мероприятия',
-      reply_markup=markup,
-    )
+    self._send('Введите ссылку на пост мероприятия', edit=True, reply_markup=markup)
 
   def _beforeEnterDesc(self):
-    self._send('Введите название мероприятия')
+    self._send('Введите название мероприятия', edit=True)
 
   def _handleEnterStartTime(self, text: str):
     self.proto.start, error = parse_datetime(text)
@@ -137,28 +131,29 @@ class EventTgMaker:
                                           delta=dt.timedelta(weeks=4))
       self._nextState()
     else:
-      self._send(error)
+      self._send(error, warning=True)
 
   def _handleEnterFinishTime(self, text: str):
     try:
       self.proto.finish = self.proto.start + dt.timedelta(minutes=int(text))
       self._nextState()
     except:
-      self._send('Нужно число! число минут! Как "120", например, или "150"')
+      self._send('Нужно число! число минут! Как "120", например, или "150"',
+                 warning=True)
 
   def _handleEnterPlace(self, text: str):
     self.proto.place = Place(name=text)
     self._nextState()
 
   def _handleEnterUrl(self, text: str):
-    if text.lower() in ['пропустить', 'пропуск']:
+    if text.lower() in ['нет', 'none']:
       self.proto.url = None
       self._nextState()
     elif check_url(text):
       self.proto.url = text
       self._nextState()
     else:
-      self._send('Что-то не похоже на ссылку, давай по новой')
+      self._send('Что-то не похоже на ссылку, давай по новой', warning=True)
 
   def _handleEnterDesc(self, text: str):
     self.proto.desc = text
@@ -167,7 +162,7 @@ class EventTgMaker:
   def _callbackQueryEnterUrl(self, call):
     self.tg.answer_callback_query(call.id, 'Ввод URL пропущен')
     self.proto.url = None
-    self._send('URL не введён, ну и ладно')
+    self._send('🤔 URL не введён, ну и ладно')
     self._nextState()
 
   def _callbackQueryEnterPlace(self, call):
@@ -176,9 +171,18 @@ class EventTgMaker:
       self.tg.answer_callback_query(call.id, 'Что-то не так :(')
       return
     self.tg.answer_callback_query(call.id, self.proto.place.name)
-    self._send(f'Место мероприятия установлено: {self.proto.place.name}')
+    self._send(f'Место мероприятия установлено: {self.proto.place.name}', ok=True)
     self._nextState()
 
-  def _send(self, message):
-    self.tg.send_message(chat_id=self.chat, text=message)
+  def _send(
+    self,
+    message,
+    edit=False,
+    warning=False,
+    ok=False,
+    fail=False,
+    reply_markup=None
+  ):
+    message = emoji(message, edit, warning, ok, fail)
+    self.tg.send_message(chat_id=self.chat, text=message, reply_markup=reply_markup)
 

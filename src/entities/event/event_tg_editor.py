@@ -6,6 +6,7 @@ from telebot.types import CallbackQuery, MessageEntity, InlineKeyboardMarkup, In
 from src.entities.event.accessory import *
 from src.entities.event.event import Event, EventField, Place
 from src.entities.event.event_fields_parser import *
+from src.entities.message_maker.emoji import emoji
 
 
 class EventTgEditor:
@@ -52,24 +53,28 @@ class EventTgEditor:
   def callbackQuery(self, call: CallbackQuery):
     if call.data == self._cd(EventField.DESC):
       self.state = EventField.DESC
-      self._send('Введите название мероприятия', call.id)
+      self._send('Введите название мероприятия', call.id, edit=True)
     elif call.data == self._cd(EventField.START_TIME):
       self.state = EventField.START_TIME
-      self._send('Введите дату и время начала мероприятия', call.id)
+      self._send('Введите дату и время начала мероприятия', call.id, edit=True)
     elif call.data == self._cd(EventField.FINISH_TIME):
       self.state = EventField.FINISH_TIME
-      self._send('Введите продолжительность мероприятия (в минутах)', call.id)
+      self._send('Введите продолжительность мероприятия (в минутах)',
+                 call.id,
+                 edit=True)
     elif call.data == self._cd(EventField.PLACE):
       self.state = EventField.PLACE
       self._send('Введите место проведения мероприятия',
                  call.id,
-                 markup=place_markup())
+                 markup=place_markup(),
+                 edit=True)
     elif call.data == self._cd(EventField.URL):
       self.state = EventField.URL
       self._send('Введите URL или специальное значение "none" для удаления ссылки',
-                 call.id)
+                 call.id,
+                 edit=True)
     elif call.data == self._cd(EventTgEditor.EXIT):
-      self._send('Редактирование заверщено', call.id)
+      self._send('Редактирование заверщено', call.id, ok=True)
       self._finish()
     elif self.state == EventField.PLACE:
       place = place_to_str_map().get(call.data)
@@ -89,14 +94,15 @@ class EventTgEditor:
       self.event.start, self.event.finish = start, start + delta
       self._eventChanged()
     else:
-      self._send(error)
+      self._send(error, warning=True)
   
   def _handleEnterFinishTime(self, text: str):
     try:
       self.event.finish = self.event.start + dt.timedelta(minutes=int(text))
       self._eventChanged()
     except:
-      self._send('Нужно число! число минут! Как "120", например, или "150"')
+      self._send('Нужно число! число минут! Как "120", например, или "150"',
+                 warning=True)
   
   def _handleEnterPlace(self, text: str):
     self.event.place = Place(name=text)
@@ -110,7 +116,7 @@ class EventTgEditor:
       self.event.url = text
       self._eventChanged()
     else:
-      self._send('Что-то не похоже на ссылку, давай по новой')
+      self._send('Что-то не похоже на ссылку :(', fail=True)
   
   def _handleEnterDesc(self, text: str):
     self.event.desc = text
@@ -175,7 +181,17 @@ class EventTgEditor:
   def _cd(self, field):
     return f'{EventTgEditor.__name__}_{field}'
   
-  def _send(self, message, answer_callback_query_id: int = None, markup = None):
+  def _send(
+    self,
+    message,
+    answer_callback_query_id: int = None,
+    markup = None,
+    edit = False,
+    warning = False,
+    ok = False,
+    fail = False,
+  ):
+    message = emoji(message, edit, warning, ok, fail)
     self.tg.send_message(chat_id=self.chatId,
                          text=message,
                          reply_markup=markup)
@@ -184,7 +200,7 @@ class EventTgEditor:
                                     text=message)
 
   def _eventChanged(self):
-    self._send('Успех!')
+    self._send('Успех!', ok=True)
     self.state = None
     self._translate()
     if self.onEdit is not None:

@@ -10,6 +10,7 @@ from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_repository import EventRepository
 from src.entities.event.event_tg_editor import EventTgEditor
 from src.entities.event.event_tg_maker import EventTgMaker
+from src.entities.message_maker.emoji import emoji, Emoji
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.message_maker.piece import Piece
 from src.entities.timesheet.timesheet import Timesheet
@@ -104,9 +105,10 @@ class User(Notifier):
       return
     events = sorted(list(self._findTimesheet().events()),
                     key=lambda e: e.start)
-    self.send('Пусто :('
-              if len(events) == 0 else
-              '\n'.join([MessageMaker.eventPreview(e) for e in events]))
+    if len(events) == 0:
+      self.send('Пусто :(', fail=True)
+    else:
+      self.send('\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
   def handleEditEvent(self, text):
     self._checkAndMakeFree()
@@ -131,7 +133,7 @@ class User(Notifier):
     timesheet = self.timesheetRepository.find(self.timesheetId)
     timesheet.removeEvent(event.id)
     self.eventRepository.remove(event.id)
-    self.send('Мероприятие успешно удалено')
+    self.send('Мероприятие успешно удалено', ok=True)
 
 
   # timesheet commands
@@ -144,10 +146,10 @@ class User(Notifier):
                   for tm in self.timesheetRepository.timesheets.values()
                   if tm[1].name == name]
     if len(timesheets) != 0:
-      self.send(f'Расписание с именем {name} уже есть :( давай по новой')
+      self.send(f'Расписание с именем {name} уже есть :( давай по новой', fail=True)
       return
     self.timesheetId = self.timesheetRepository.create(name=name,pswd=pswd).id
-    self.send(f'Расписание "{name}" с паролем "{pswd}" успешно создано')
+    self.send(f'Расписание "{name}" с паролем "{pswd}" успешно создано', ok=True)
     self.notify()
     
   def handleSetTimesheet(self, text: str = None):
@@ -159,13 +161,13 @@ class User(Notifier):
                   for tm in self.timesheetRepository.timesheets.values()
                   if tm[1].name == name]
     if len(timesheets) == 0:
-      self.send(f'Расписания с названием "{name}" не найдено :(')
+      self.send(f'Расписания с названием "{name}" не найдено :(', fail=True)
       return
     if pswd != timesheets[0].password:
-      self.send('Пароль не подходит :(')
+      self.send('Пароль не подходит :(', fail=True)
       return
     self.timesheetId = timesheets[0].id
-    self.send(f'Успешно выбрано расписание {name}')
+    self.send(f'Успешно выбрано расписание {name}', ok=True)
     self.notify()
 
   def handleSetTimesheetHead(self):
@@ -173,14 +175,14 @@ class User(Notifier):
     if not self._checkTimesheet():
       return
     self.state = UserState.ENTER_TIMESHEET_HEAD
-    self.send('Введите заголовок расписания')
+    self.send('Введите заголовок расписания', edit=True)
 
   def handleSetTimesheetTail(self):
     self._checkAndMakeFree()
     if not self._checkTimesheet():
       return
     self.state = UserState.ENTER_TIMESHEET_TAIL
-    self.send('Введите подвал расписания')
+    self.send('Введите подвал расписания', edit=True)
 
   def handleShowTimesheetInfo(self):
     self._checkAndMakeFree()
@@ -192,7 +194,8 @@ class User(Notifier):
   def handleShowTimesheetList(self):
     self._checkAndMakeFree()
     names = [tm.name for _, tm in self.timesheetRepository.timesheets.values()]
-    self.send('Существующие расписания:\n' + '\n'.join(f'- {name}' for name in names))
+    self.send('Существующие расписания:\n' +
+              '\n'.join(f'{Emoji.TIMESHEET_ITEM} {name}' for name in names))
 
 
   # post commands
@@ -206,10 +209,12 @@ class User(Notifier):
       if m is not None:
         channel = '@' + m.group(2)
       else:
-        self.send('Нужно ввести идентификатор (логин) канала вида @xxx или ссылку на канал')
+        self.send('Нужно ввести идентификатор (логин) канала '
+                  'вида @xxx или ссылку на канал',
+                  warning=True)
         return
     self.channel = channel
-    self.send(f'Канал успешно установлен на "{self.channel}"')
+    self.send(f'Канал успешно установлен на "{self.channel}"', ok=True)
     self.notify()
   
   def handlePost(self):
@@ -233,7 +238,7 @@ class User(Notifier):
         timesheet_id=self.timesheetId,
       )
       if self.translationRepo.add(tr):
-        self.send('Успешно добавили трансляцию')
+        self.send('Успешно добавили трансляцию', ok=True)
       else:
         self._sendPostFail()
       return
@@ -247,7 +252,7 @@ class User(Notifier):
       if m is not None:
         message_id = int(m.group(1))
     if message_id is None:
-      self.send('ID сообщения — это просто число или ссылка на пост!!')
+      self.send('ID сообщения — это просто число или ссылка на пост!!', warning=True)
       return
     tr = self.translationFactory.make(
       chat_id=self.channel,
@@ -256,9 +261,10 @@ class User(Notifier):
     )
     if self.translationRepo.add(tr) and tr.updatePost():
       self.send('Успешно добавили трансляцию в сообщение '
-                f'https://t.me/{self.channel[1:]}/{message_id}')
+                f'https://t.me/{self.channel[1:]}/{message_id}',
+                ok=True)
     else:
-      self.send('Что-то пошло не так :(')
+      self.send('Что-то пошло не так :(', fail=True)
     
   def handleClearTranslations(self):
     self._checkAndMakeFree()
@@ -267,13 +273,13 @@ class User(Notifier):
     self.translationRepo.removeTranslations(
       lambda tr: tr.chatId == self.channel or tr.chatId is None
     )
-    self.send('Успешно удалили все трансляции для выбранного канала')
+    self.send('Успешно удалили все трансляции для выбранного канала', ok=True)
 
 
   # other handlers
   def handleText(self, text: str):
     if self.state == UserState.FREE:
-      self.send('Непонятно, что ты хочешь..? напиши /help')
+      self.send('Непонятно.. что ты хочешь..? напиши /help', fail=True)
     elif self.state == UserState.CREATING_EVENT:
       self.eventTgMaker.handleText(text)
     elif self.state == UserState.EDITING_EVENT:
@@ -285,7 +291,7 @@ class User(Notifier):
       self._findTimesheet().setHead(
         [Piece(text)] if text.lower() != 'none' else None
       )
-      self.send('Заголовок расписания успешно установлен!')
+      self.send('Заголовок расписания успешно установлен!', ok=True)
     elif self.state == UserState.ENTER_TIMESHEET_TAIL:
       self.state = UserState.FREE
       if not self._checkTimesheet():
@@ -293,7 +299,7 @@ class User(Notifier):
       self._findTimesheet().setTail(
         [Piece(text)] if text.lower() != 'none' else None
       )
-      self.send('Подвал расписания успешно установлен!')
+      self.send('Подвал расписания успешно установлен!', ok=True)
     else:
       raise Exception(f'No switch case for {self.state}')
     
@@ -309,8 +315,18 @@ class User(Notifier):
 
 
   # OTHER
-  def send(self, message, disable_web_page_preview=True, entities=None):
+  def send(
+    self,
+    message,
+    disable_web_page_preview=True,
+    entities=None,
+    edit=False,
+    warning=False,
+    ok=False,
+    fail=False,
+  ):
     # self.logger.answer(chat_id=self.chat, text=message)
+    message = emoji(message, edit, warning, ok, fail)
     self.tg.send_message(
       chat_id=self.chat,
       text=message,
@@ -328,7 +344,7 @@ class User(Notifier):
         entities=entities,
         disable_web_page_preview=disable_web_page_preview,
       )
-      self.send('Пост успешно сделан!')
+      self.send('Пост успешно сделан!', ok=True)
     except ApiTelegramException as e:
       self._sendPostFail(e)
 
@@ -338,11 +354,11 @@ class User(Notifier):
     self.state = UserState.FREE
     timesheet = self._findTimesheet()
     if timesheet is None:
-      self.send('Расписание куда-то делось.. мероприятие не добавлено :(')
+      self.send('Расписание куда-то делось.. мероприятие не добавлено :(', fail=True)
       return
     self.eventRepository.add(event)
     timesheet.addEvent(event.id)
-    self.send('Мероприятие успешно добавлено в расписание!')
+    self.send(f'Мероприятие #{event.id} успешно добавлено в расписание!', ok=True)
     
   def _onEventEditorFinish(self):
     self.state = UserState.FREE
@@ -351,28 +367,29 @@ class User(Notifier):
     if self.state == UserState.FREE:
       return True
     elif self.state == UserState.EDITING_EVENT:
-      self.send('Редактирование события завершено')
+      self.send('Редактирование события завершено', ok=True)
     elif self.state == UserState.CREATING_EVENT:
-      self.send('Создание события прервано')
+      self.send('Создание события прервано', warning=True)
     elif self.state == UserState.ENTER_TIMESHEET_HEAD:
-      self.send('Ввод заголовка расписания прервано')
+      self.send('Ввод заголовка расписания прервано', warning=True)
     elif self.state == UserState.ENTER_TIMESHEET_TAIL:
-      self.send('Ввод подвала расписания прервано')
+      self.send('Ввод подвала расписания прервано', warning=True)
     self.state = UserState.FREE
     return False
   
   def _checkTimesheet(self) -> bool:
     if self.timesheetId is None:
-      self.send('Вы не подключены ни к какому расписанию')
+      self.send('Вы не подключены ни к какому расписанию', warning=True)
       return False
     if self._findTimesheet() is None:
-      self.send('Расписание не найдено :( возможно, его удалили')
+      self.send('Расписание не найдено :( возможно, его удалили', fail=True)
       return False
     return True
   
   def _checkChannel(self) -> bool:
     if self.channel is None:
-      self.send('Ошибкочка: канал не установлен, используйте /set_channel, чтобы установить канал')
+      self.send('Ошибкочка: канал не установлен, используйте /set_channel, '
+                'чтобы установить канал', warning=True)
       return False
     return True
 
@@ -398,20 +415,22 @@ class User(Notifier):
       
       if len(events) == 0:
         self.send('Мероприятия с таким id не найдено. '
-                  'Используйте /show_events, чтобы посмотреть события')
+                  'Используйте /show_events, чтобы посмотреть события',
+                  warning=True)
         return None
       return events[0]
     except:
-      self.send('Введите корректный id (см. /show_events)')
+      self.send('Введите корректный id (см. /show_events)', warning=True)
       return None
     
   def _sendPostFail(self, e = None):
-    self.send(f'\u26A0 Произошла ошибка при попытке сделать пост :(\n\n'
+    self.send(f'Произошла ошибка при попытке сделать пост :(\n\n'
               f'Возможные причины таковы:\n'
               f'1) Не верно указано название канала (сейчас: {self.channel})\n'
               f'2) Бот не является администратором канала' +
               ('' if e is None else
-              f'\n\nВот как выглядит сообщение об ошибки: {e}'))
+              f'\n\nВот как выглядит сообщение об ошибки: {e}'),
+              warning=True)
     
   def _makePost(self) -> (str, [MessageEntity]):
     self._checkAndMakeFree()
@@ -420,7 +439,7 @@ class User(Notifier):
     timesheet = self._findTimesheet()
     events = list(timesheet.events())
     if len(events) == 0:
-      self.send('Нельзя запостить пустое расписание')
+      self.send('Нельзя запостить пустое расписание', warning=True)
       return None, None
     return self.msgMaker.timesheetPost(events,
                                        head=timesheet.head,
@@ -431,9 +450,9 @@ class User(Notifier):
     if (len(words) != 2
       or re.match(r'^\w+$', words[0]) is None
       or re.match(r'^\w+$', words[1]) is None):
-      self.send('Нужно ввести только название и пароль; они могут'
+      self.send('Неее. Нужно ввести только название и пароль; они могут'
                 'состоять только из латинских букв, цифр и символов'
-                'нижнего подчёркивания')
+                'нижнего подчёркивания', warning=True)
       return None, None
     return words[0], words[1]
 
