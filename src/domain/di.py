@@ -45,7 +45,9 @@ class Di:
   def flogger(self) -> FLogger:
     if self._flogger is None:
       self._flogger = FLogger(
-        logger=self.logger()
+        logger=self.logger(),
+        tg=self.tg(),
+        chats=self.config().loggingDefaultChats(),
       )
     return self._flogger
 

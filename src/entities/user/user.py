@@ -114,7 +114,7 @@ class User(Notifier):
 
   def handleEditEvent(self, text):
     self._checkAndMakeFree()
-    event = self._checkFindEventByTextId(text)
+    event = self._checkFindEventByTextId(text, '/edit_event')
     if event is None:
       return
     self.eventTgEditor = EventTgEditor(
@@ -129,7 +129,7 @@ class User(Notifier):
 
   def handleRemoveEvent(self, text):
     self._checkAndMakeFree()
-    event = self._checkFindEventByTextId(text)
+    event = self._checkFindEventByTextId(text, '/remove_event')
     if event is None:
       return
     timesheet = self.timesheetRepository.find(self.timesheetId)
@@ -141,7 +141,7 @@ class User(Notifier):
   # timesheet commands
   def handleMakeTimesheet(self, text: str = None):
     self._checkAndMakeFree()
-    name, pswd = self._logpassCheck(text)
+    name, pswd = self._logpassCheck(text, '/make_timesheet')
     if name is None or pswd is None:
       return
     timesheets = [tm[1]
@@ -164,7 +164,7 @@ class User(Notifier):
     
   def handleSetTimesheet(self, text: str = None):
     self._checkAndMakeFree()
-    name, pswd = self._logpassCheck(text)
+    name, pswd = self._logpassCheck(text, '/set_timesheet')
     if name is None or pswd is None:
       return
     timesheets = [tm[1]
@@ -356,7 +356,7 @@ class User(Notifier):
     send_message(
       tg=self.tg,
       chat_id=self.chat,
-      message=message,
+      text=message,
       disable_web_page_preview=disable_web_page_preview,
       edit=edit,
       warning=warning,
@@ -371,7 +371,7 @@ class User(Notifier):
       send_message(
         tg=self.tg,
         chat_id=self.channel,
-        message=message,
+        text=message,
         disable_web_page_preview=disable_web_page_preview,
       )
       self.send('Пост успешно сделан!', ok=True)
@@ -435,7 +435,7 @@ class User(Notifier):
       menu_button=MenuButtonCommands(type='commands'),
     )
     
-  def _checkFindEventByTextId(self, text) -> Optional[Event]:
+  def _checkFindEventByTextId(self, text, command) -> Optional[Event]:
     try:
       id = int(text)
       if not self._checkTimesheet():
@@ -450,7 +450,10 @@ class User(Notifier):
         return None
       return events[0]
     except:
-      self.send('Введите корректный id (см. /show_events)', warning=True)
+      self.send([Piece('Введите корректный id: '),
+                 Piece(f'{command} ID', type='code'),
+                 Piece(' (см. /show_events)')],
+                warning=True)
       return None
     
   def _sendPostFail(self, e = None):
@@ -475,14 +478,15 @@ class User(Notifier):
                                        head=timesheet.head,
                                        tail=timesheet.tail)
   
-  def _logpassCheck(self, text) -> (str, str):
+  def _logpassCheck(self, text, command) -> (str, str):
     words = list(text.split())
     if (len(words) != 2
       or re.match(r'^\w+$', words[0]) is None
       or re.match(r'^\w+$', words[1]) is None):
-      self.send('Неее. Нужно ввести только название и пароль; они могут'
-                'состоять только из латинских букв, цифр и символов'
-                'нижнего подчёркивания', warning=True)
+      self.send([Piece('Неее. Нужно ввести название и пароль: '),
+                 Piece(f'{command} NAME PASSWORD', type='code'),
+                 Piece(f'; они могутсостоять только из латинских букв, '
+                       'цифр и символов нижнего подчёркивания')], warning=True)
       return None, None
     return words[0], words[1]
 

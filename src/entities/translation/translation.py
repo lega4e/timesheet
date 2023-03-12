@@ -72,7 +72,7 @@ class Translation(Notifier):
         self.messageId = send_message(
           tg=self.tg,
           chat_id=self.chatId,
-          message=message,
+          text=message,
           disable_web_page_preview=True,
         ).message_id
       except:
@@ -96,7 +96,8 @@ class Translation(Notifier):
     self._dispose = None
     
   def _translate(self, timesheet: Timesheet) -> bool:
-    print('TRANSLATE')
+    from src.domain.di import glob
+    glob().flogger().info(f'Translate to {self.chatId} {self.messageId}')
     pieces = self._getMessage(timesheet)
     if pieces is None:
       return False

@@ -184,7 +184,7 @@ class EventTgMaker:
     send_message(
       tg=self.tg,
       chat_id=self.chat,
-      message=message,
+      text=message,
       edit=edit,
       warning=warning,
       ok=ok,

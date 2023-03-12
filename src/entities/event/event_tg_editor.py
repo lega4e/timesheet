@@ -139,9 +139,11 @@ class EventTgEditor:
       )]
     }
     if self.messageId is None:
-      self.messageId = self.tg.send_message(**kwargs).message_id
+      self.messageId = send_message(tg=self.tg, **kwargs).message_id
     else:
       kwargs['message_id'] = self.messageId
+      from src.domain.di import glob
+      glob().flogger().info(f'Edit message {self.chatId} {self.messageId}')
       self.tg.edit_message_text(**kwargs)
 
   def _makeEventRepr(self) -> str:
@@ -196,7 +198,7 @@ class EventTgEditor:
     send_message(
       tg=self.tg,
       chat_id=self.chatId,
-      message=message,
+      text=message,
       reply_markup=markup,
       answer_callback_query_id=answer_callback_query_id,
       answer_callback_query_text=message,
