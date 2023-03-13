@@ -1,9 +1,13 @@
+import datetime as dt
 import traceback
+
 from typing import Any, Callable
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
+from src.entities.event.event import Event
+from src.entities.event.event_fields_parser import datetime_today
 from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.message_maker.piece import Piece, piece2string, piece2entities
@@ -34,7 +38,7 @@ class Translation(Notifier):
     self.timesheetRepo = timesheet_repo
     self.msgMaker = message_maker
     self.logger = logger
-    self.eventPredicat = event_predicat or (lambda _: True)
+    self.eventPredicat = event_predicat or Translation._defaultPredicat
     if serialized is None:
       self.id = id
       self.chatId = chat_id
@@ -87,7 +91,10 @@ class Translation(Notifier):
     return self._translate(timesheet)
     
   def emitDestroy(self):
-    print('(Translation.emitDestroy())')
+    from src.domain.di import glob
+    s = f'Translation Emit Destroy {self.chatId}, {self.messageId}'
+    glob().flogger().info(s)
+    print(s)
     self.notify(Translation.EMIT_DESTROY)
 
   def dispose(self):
@@ -97,12 +104,15 @@ class Translation(Notifier):
     
   def _translate(self, timesheet: Timesheet) -> bool:
     from src.domain.di import glob
-    glob().flogger().info(f'Translate to {self.chatId} {self.messageId}')
+    logger = glob().flogger()
     pieces = self._getMessage(timesheet)
+    logger_title = self._getLoggerTitle()
     if pieces is None:
+      logger.info(f'{logger_title} no pieces')
       return False
     message, entities = piece2string(pieces), piece2entities(pieces)
     if message is None:
+      logger.info(f'{logger_title} message is none')
       return False
     try:
       self.tg.edit_message_text(
@@ -112,21 +122,41 @@ class Translation(Notifier):
         entities=entities,
         disable_web_page_preview=True,
       )
+      logger.info(f'{logger_title} success')
       return True
     except ApiTelegramException as e:
+      print(str(e))
       if 'message is not modified' in str(e):
+        logger.info(f'{logger_title} not modified')
         return True
       elif 'message to edit not found' in str(e):
+        logger.info(f'{logger_title} message not found')
         self.emitDestroy()
+        return False
+      elif 'MESSAGE_ID_INVALID' in str(e):
+        logger.info(f'{logger_title} message id invalid')
+        self.emitDestroy()
+        return False
+      logger.info(f'{logger_title} fail')
       self.logger.error(traceback.format_exc())
       return False
     
   def _getMessage(self, timesheet: Timesheet) -> [Piece]:
     events = list(timesheet.events(predicat=self.eventPredicat))
     if len(events) == 0:
-      print('(Translation._getMessage) -> len(events) == 0 -> emitDestroy')
+      from src.domain.di import glob
+      title = self._getLoggerTitle()
+      glob().flogger().info(f'{title} len(events) == 0 -> EmitDestroy')
       self.emitDestroy()
       return None
     return self.msgMaker.timesheetPost(events,
                                        head=timesheet.head,
                                        tail=timesheet.tail)
+  
+  def _getLoggerTitle(self):
+    chat_id_str = str(self.chatId) if isinstance(self.chatId, int) else self.chatId[1:]
+    return f'Translate to t.me/{chat_id_str}/{self.messageId}'
+  
+  @staticmethod
+  def _defaultPredicat(event: Event) -> bool:
+    return event.start >= datetime_today()

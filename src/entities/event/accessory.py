@@ -15,7 +15,7 @@ def place_markup() -> InlineKeyboardMarkup:
 def place_to_str_map() -> {str: str}:
   return {
     Place.PLOT: 'Плоt',
-    Place.TOCHKA: 'То4ка',
+    Place.TOCHKA: '• точка •',
     Place.BOILER_HOUSE: 'Котельная',
     Place.TLL: 'ТЛЛ',
     Place.TODD: 'ТОДД',

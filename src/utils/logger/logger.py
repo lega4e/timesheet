@@ -39,7 +39,6 @@ class FLogger:
     fail = False,
     **kwargs
   ):
-    print('message logger')
     if self.tg is None:
       return
     for chat in self.chats:

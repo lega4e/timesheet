@@ -28,14 +28,16 @@ def log_text(func):
 @log_text
 @user_finder
 def handle_start(user, _, __=False):
-  user.handleStart()
+  if user is not None:
+    user.handleStart()
 
 
 @tg.message_handler(commands=['help'])
 @log_text
 @user_finder
 def handle_help(user, _, __=False):
-  user.handleHelp()
+  if user is not None:
+    user.handleHelp()
 
 
 # event commands
@@ -43,28 +45,32 @@ def handle_help(user, _, __=False):
 @log_text
 @user_finder
 def handle_make_event(user, _, __=False):
-  user.handleMakeEvent()
+  if user is not None:
+    user.handleMakeEvent()
 
 
 @tg.message_handler(commands=['show_events'])
 @log_text
 @user_finder
 def handle_show_events(user, _, __=False):
-  user.handleShowEvents()
+  if user is not None:
+    user.handleShowEvents()
 
 
 @tg.message_handler(commands=['edit_event'])
 @log_text
 @user_finder
 def handle_edit_event(user, m, __=False):
-  user.handleEditEvent(m.text[len('edit_event')+1:].strip())
+  if user is not None:
+    user.handleEditEvent(m.text[len('edit_event')+1:].strip())
 
 
 @tg.message_handler(commands=['remove_event'])
 @log_text
 @user_finder
 def handle_remove_event(user, m, __=False):
-  user.handleRemoveEvent(m.text[len('remove_event')+1:].strip())
+  if user is not None:
+    user.handleRemoveEvent(m.text[len('remove_event')+1:].strip())
 
 
 # timesheet commands
@@ -72,14 +78,16 @@ def handle_remove_event(user, m, __=False):
 @log_text
 @user_finder
 def handle_make_timesheet(user, m, __=False):
-  user.handleMakeTimesheet(m.text[len('make_timesheet')+1:].strip())
+  if user is not None:
+    user.handleMakeTimesheet(m.text[len('make_timesheet')+1:].strip())
 
 
 @tg.message_handler(commands=['set_timesheet'])
 @log_text
 @user_finder
 def handle_set_timesheet(user, m, __=False):
-  user.handleSetTimesheet(m.text[len('set_timesheet')+1:].strip())
+  if user is not None:
+    user.handleSetTimesheet(m.text[len('set_timesheet')+1:].strip())
   
   
 # post commands
@@ -87,35 +95,40 @@ def handle_set_timesheet(user, m, __=False):
 @log_text
 @user_finder
 def handle_set_channel(user, m, __=False):
-  user.handleSetChannel(m.text[len('set_channel')+1:].strip())
+  if user is not None:
+    user.handleSetChannel(m.text[len('set_channel')+1:].strip())
 
 
 @tg.message_handler(commands=['post'])
 @log_text
 @user_finder
 def handle_post(user, _, __=False):
-  user.handlePost()
+  if user is not None:
+    user.handlePost()
 
 
 @tg.message_handler(commands=['post_preview'])
 @log_text
 @user_finder
 def handle_post(user, _, __=False):
-  user.handlePostPreview()
+  if user is not None:
+    user.handlePostPreview()
 
 
 @tg.message_handler(commands=['translate'])
 @log_text
 @user_finder
 def handle_translate(user, m, __=False):
-  user.handleTranslate(m.text[len('translate')+1:].strip())
+  if user is not None:
+    user.handleTranslate(m.text[len('translate')+1:].strip())
 
 
 @tg.message_handler(commands=['clear_translations'])
 @log_text
 @user_finder
 def handle_clear_translations(user, _, __=False):
-  user.handleClearTranslations()
+  if user is not None:
+    user.handleClearTranslations()
 
 
 # head and tail timesheet
@@ -123,28 +136,32 @@ def handle_clear_translations(user, _, __=False):
 @log_text
 @user_finder
 def handle_set_timesheet_head(user, _, __=False):
-  user.handleSetTimesheetHead()
+  if user is not None:
+    user.handleSetTimesheetHead()
 
 
 @tg.message_handler(commands=['set_timesheet_tail'])
 @log_text
 @user_finder
 def handle_set_timesheet_tail(user, _, __=False):
-  user.handleSetTimesheetTail()
+  if user is not None:
+    user.handleSetTimesheetTail()
 
 
 @tg.message_handler(commands=['show_timesheet_info'])
 @log_text
 @user_finder
 def handle_show_timesheet_info(user, _, __=False):
-  user.handleShowTimesheetInfo()
+  if user is not None:
+    user.handleShowTimesheetInfo()
 
 
 @tg.message_handler(commands=['show_timesheet_list'])
 @log_text
 @user_finder
 def handle_show_timesheet_list(user, _, __=False):
-  user.handleShowTimesheetList()
+  if user is not None:
+    user.handleShowTimesheetList()
 
 
 # other
@@ -158,7 +175,8 @@ def handle_text(user, m, __=False):
 @tg.callback_query_handler(func=lambda call: True)
 def callback_query(call: CallbackQuery):
   user = users.find(call.from_user.id)
-  user.callbackQuery(call)
+  if user is not None:
+    user.callbackQuery(call)
 
 
 def set_my_commands():

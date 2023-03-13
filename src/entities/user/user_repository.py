@@ -14,6 +14,8 @@ class UserRepository:
     self.users = self._deserializeUsers()
 
   def find(self, chat: int) -> User:
+    if chat < 0:
+      return None
     user = self.users.get(chat)
     if user is not None:
       return user[1]

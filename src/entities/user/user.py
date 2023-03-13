@@ -7,6 +7,7 @@ from typing import Optional, Any
 
 from src.entities.event.event import Event
 from src.entities.event.event_factory import EventFactory
+from src.entities.event.event_fields_parser import datetime_today
 from src.entities.event.event_repository import EventRepository
 from src.entities.event.event_tg_editor import EventTgEditor
 from src.entities.event.event_tg_maker import EventTgMaker
@@ -203,8 +204,8 @@ class User(Notifier):
     self._checkAndMakeFree()
     if not self._checkTimesheet():
       return
-    self.send([Piece(f'Название: "{self._findTimesheet().name}"\n'
-                     f'Пароль:   "{self._findTimesheet().password}"',
+    self.send([Piece(f'Название: {self._findTimesheet().name}\n'
+                     f'Пароль:   {self._findTimesheet().password}',
                      type='code')])
 
   def handleShowTimesheetList(self):
@@ -246,12 +247,12 @@ class User(Notifier):
     self.notify()
   
   def handlePost(self):
-    message = self._makePost()
+    message = self._makePost(lambda e: e.start >= datetime_today())
     if message is not None:
       self.post(message)
     
   def handlePostPreview(self):
-    message = self._makePost()
+    message = self._makePost(lambda e: e.start >= datetime_today())
     if message is not None:
       self.send(message)
 
@@ -465,12 +466,12 @@ class User(Notifier):
               f'\n\nВот как выглядит сообщение об ошибки: {e}'),
               warning=True)
     
-  def _makePost(self) -> [Piece]:
+  def _makePost(self, predicat = lambda _: True) -> [Piece]:
     self._checkAndMakeFree()
     if not self._checkTimesheet():
       return None
     timesheet = self._findTimesheet()
-    events = list(timesheet.events())
+    events = list(timesheet.events(predicat=predicat))
     if len(events) == 0:
       self.send('Нельзя запостить пустое расписание', warning=True)
       return None

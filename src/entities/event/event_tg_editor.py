@@ -90,6 +90,9 @@ class EventTgEditor:
     start, error = parse_datetime(text)
     if start is not None:
       start = correct_datetime(start, isfuture=True, delta=dt.timedelta(weeks=3))
+      if self.event.start == start:
+        self._eventDontChanged()
+        return
       if self.event.finish is not None:
         delta = self.event.finish - self.event.start
         self.event.finish = start + delta
@@ -100,29 +103,45 @@ class EventTgEditor:
   
   def _handleEnterFinishTime(self, text: str):
     try:
-      self.event.finish = self.event.start + dt.timedelta(minutes=int(text))
-      self._eventChanged()
+      newfinish = self.event.start + dt.timedelta(minutes=int(text))
+      if self.event.finish != newfinish:
+        self.event.finish = newfinish
+        self._eventChanged()
+      else:
+        self._eventDontChanged()
     except:
       self._send('Нужно число! число минут! Как "120", например, или "150"',
                  warning=True)
   
   def _handleEnterPlace(self, text: str):
-    self.event.place = Place(name=text)
-    self._eventChanged()
+    if self.event.place.name != text:
+      self.event.place = Place(name=text)
+      self._eventChanged()
+    else:
+      self._eventDontChanged()
   
   def _handleEnterUrl(self, text: str):
     if text == 'none':
-      self.event.url = None
-      self._eventChanged()
+      if self.event.url is not None:
+        self.event.url = None
+        self._eventChanged()
+      else:
+        self._eventDontChanged()
     elif check_url(text):
-      self.event.url = text
-      self._eventChanged()
+      if self.event.url != text:
+        self.event.url = text
+        self._eventChanged()
+      else:
+        self._eventDontChanged()
     else:
       self._send('Что-то не похоже на ссылку :(', fail=True)
   
   def _handleEnterDesc(self, text: str):
-    self.event.desc = text
-    self._eventChanged()
+    if self.event.desc != text:
+      self.event.desc = text
+      self._eventChanged()
+    else:
+      self._eventDontChanged()
 
   
   # OTHER
@@ -214,6 +233,9 @@ class EventTgEditor:
     if self.onEdit is not None:
       self.onEdit()
     self._translate()
+    
+  def _eventDontChanged(self):
+    self._send('Ничего не поменялось :( попробуй ещё раз', fail=True)
 
   def _finish(self):
     self.clear()

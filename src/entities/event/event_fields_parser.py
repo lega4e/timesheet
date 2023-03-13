@@ -24,19 +24,39 @@ def correct_datetime(
   isfuture: bool = False,
   delta: dt.timedelta = dt.timedelta()
 ) -> dt.datetime:
-  def copy_with(val: dt.datetime, year: int):
-    return dt.datetime(year=year,
-                       month=val.month,
-                       day=val.day,
-                       hour=val.hour,
-                       minute=val.minute,
-                       second=val.second,
-                       microsecond=val.microsecond)
-  value = copy_with(value, dt.datetime.now().year)
-  return (copy_with(value, value.year+1)
+  value = datetime_copy_with(value, dt.datetime.now().year)
+  return (datetime_copy_with(value, value.year+1)
           if isfuture and value < dt.datetime.now() - delta else
           value)
   
   
 def check_url(text: str):
   return re.match(r'^https?://.*\..+', text) is not None
+  
+  
+def datetime_copy_with(
+  val: dt.datetime,
+  year: int = None,
+  month: int = None,
+  day: int = None,
+  hour: int = None,
+  minute: int = None,
+  second: int = None,
+  microsecond: int = None
+):
+    return dt.datetime(year=val.year if year is None else year,
+                       month=val.month if month is None else month,
+                       day=val.day if day is None else day,
+                       hour=val.hour if hour is None else hour,
+                       minute=val.minute if minute is None else minute,
+                       second=val.second if second is None else second,
+                       microsecond=val.microsecond if microsecond is None else
+                                   microsecond)
+
+
+def datetime_today() -> dt.datetime:
+  return datetime_copy_with(dt.datetime.now(),
+                             hour=0,
+                             minute=0,
+                             second=0,
+                             microsecond=0)
