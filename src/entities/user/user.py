@@ -87,6 +87,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.chat = serialized.get('chat')
     self.timesheetId = serialized.get('timesheet_id')
     self.destination = self.destinationRepo.find(serialized.get('destination_id'))
+    if serialized.get('channel') is not None:
+      self.destination = self.destinationRepo.findByChat(serialized['channel'])
 
 
   # HANDLERS FOR TELEGRAM
@@ -670,6 +672,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return None
     return self.msgMaker.timesheetPost(
       events,
-      DestinationSettings.merge(timesheet.destinationSets, self.destination.sets),
+      DestinationSettings.merge(
+        timesheet.destinationSets,
+        DestinationSettings() if self.destination is None else self.destination.sets
+      ),
     )
 
