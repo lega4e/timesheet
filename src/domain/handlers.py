@@ -176,7 +176,8 @@ def handle_show_timesheet_list(user, _, __=False):
 @log_text
 @user_finder
 def handle_message(user, m, __=False):
-  user.handleMessage(m)
+  if user is not None:
+    user.handleMessage(m)
   
   
 @tg.callback_query_handler(func=lambda call: True)
