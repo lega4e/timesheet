@@ -139,6 +139,10 @@ class Translation(Notifier):
         logger.info(f'{logger_title} chat not found')
         self.emitDestroy()
         return False
+      elif 'bot is not a member' in str(e):
+        logger.info(f'{logger_title} bot is not a member')
+        self.emitDestroy()
+        return False
       else:
         logger.info(f'{logger_title} fail')
         self.logger.error(traceback.format_exc())
