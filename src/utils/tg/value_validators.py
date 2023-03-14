@@ -1,7 +1,9 @@
 import re
+
 from abc import abstractmethod
 from typing import Callable, Union, List
 
+from chakert import Typograph
 from telebot.types import Message
 
 from src.entities.event.event_fields_parser import parse_datetime, correct_datetime
@@ -35,7 +37,7 @@ class Validator:
 
 class TextValidator(Validator):
   def validate(self, o: ValidatorObject) -> ValidatorObject:
-    o.data = o.message.text
+    o.data = Typograph('ru').typograph_text(o.message.text, 'ru')
     return o
 
 
