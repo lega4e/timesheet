@@ -1,4 +1,3 @@
-import datetime as dt
 import traceback
 
 from typing import Any, Callable
@@ -6,26 +5,25 @@ from typing import Any, Callable
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
+from src.domain.locator import LocatorStorage, Locator, glob
 from src.entities.event.event import Event
 from src.entities.event.event_fields_parser import datetime_today
 from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.message_maker.piece import Piece, piece2string, piece2entities
 from src.entities.timesheet.timesheet import Timesheet
-from src.entities.timesheet.timesheet_repository import TimesheetRepository
+from src.entities.timesheet.timesheet_repository import TimesheetRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
+from src.utils.serialize import Serializable
 
 
-class Translation(Notifier):
+class Translation(Notifier, LocatorStorage, Serializable):
   EMIT_DESTROY = 'EMIT_DESTROY'
   
   def __init__(
     self,
-    tg: TeleBot,
-    timesheet_repo: TimesheetRepository,
-    message_maker: MessageMaker,
-    logger: FLogger,
+    locator: Locator,
     id: int = None,
     event_predicat: Callable = None,
     chat_id: int = None,
@@ -33,23 +31,21 @@ class Translation(Notifier):
     timesheet_id: int = None,
     serialized: {str: Any} = None,
   ):
-    super().__init__()
-    self.tg = tg
-    self.timesheetRepo = timesheet_repo
-    self.msgMaker = message_maker
-    self.logger = logger
+    Notifier.__init__(self)
+    LocatorStorage.__init__(self, locator)
+    self.tg: TeleBot = self.locator.tg()
+    self.timesheetRepo: TimesheetRepo = self.locator.timesheetRepo()
+    self.msgMaker: MessageMaker = self.locator.messageMaker()
+    self.logger: FLogger = self.locator.flogger()
     self.eventPredicat = event_predicat or Translation._defaultPredicat
-    if serialized is None:
+    self._dispose = None
+    if serialized is not None:
+      self.deserialize(serialized)
+    else:
       self.id = id
       self.chatId = chat_id
       self.messageId = message_id
       self.timesheetId = timesheet_id
-    else:
-      self.id: int = serialized['id']
-      self.chatId: int = serialized['chat_id']
-      self.messageId: int = serialized['message_id']
-      self.timesheetId: int = serialized['timesheet_id']
-    self._dispose = None
 
   def serialize(self) -> {str: Any}:
     return {
@@ -59,6 +55,12 @@ class Translation(Notifier):
       'timesheet_id': self.timesheetId,
     }
   
+  def deserialize(self, serialized: {str: Any}):
+    self.id: int = serialized['id']
+    self.chatId = serialized['chat_id']
+    self.messageId: int = serialized['message_id']
+    self.timesheetId: int = serialized['timesheet_id']
+
   def connect(self) -> bool:
     timesheet = self.timesheetRepo.find(self.timesheetId)
     if timesheet is None:
@@ -91,7 +93,6 @@ class Translation(Notifier):
     return self._translate(timesheet)
     
   def emitDestroy(self):
-    from src.domain.di import glob
     s = f'Translation Emit Destroy {self.chatId}, {self.messageId}'
     glob().flogger().info(s)
     self.notify(Translation.EMIT_DESTROY)
@@ -102,7 +103,6 @@ class Translation(Notifier):
     self._dispose = None
     
   def _translate(self, timesheet: Timesheet) -> bool:
-    from src.domain.di import glob
     logger = glob().flogger()
     pieces = self._getMessage(timesheet)
     logger_title = self._getLoggerTitle()
@@ -151,7 +151,6 @@ class Translation(Notifier):
   def _getMessage(self, timesheet: Timesheet) -> [Piece]:
     events = list(timesheet.events(predicat=self.eventPredicat))
     if len(events) == 0:
-      from src.domain.di import glob
       title = self._getLoggerTitle()
       glob().flogger().info(f'{title} len(events) == 0 -> EmitDestroy')
       self.emitDestroy()

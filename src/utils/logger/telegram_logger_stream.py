@@ -1,13 +1,17 @@
 from sys import stdout
+from typing import List
+
 from telebot import TeleBot
 
-from .logger_stream import LoggerStream
+from src.domain.locator import LocatorStorage, Locator
+from src.utils.logger.logger_stream import LoggerStream
 
 
-class TelegramLoggerStream(LoggerStream):
-  def __init__(self, chats: [int], tg: TeleBot):
-    self.chats = chats
-    self.tg = tg
+class TelegramLoggerStream(LoggerStream, LocatorStorage):
+  def __init__(self, locator: Locator):
+    LocatorStorage.__init__(self, locator)
+    self.chats: List[int] = self.locator.config().loggingDefaultChats()
+    self.tg: TeleBot = self.locator.tg()
 
   def write(self, report):
     for chat in self.chats:

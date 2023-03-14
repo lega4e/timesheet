@@ -6,6 +6,7 @@ class Emoji:
   FAIL = '🥺'
   TIMESHEET_ITEM = '👏'
   THINK = '🤔'
+  COMMAND = '🎯'
   
 def get_emoji(emoji: str = None):
   return {

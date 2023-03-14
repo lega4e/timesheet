@@ -1,28 +1,14 @@
 from typing import Any, Callable
 
-from telebot import TeleBot
-
-from src.entities.message_maker.message_maker import MessageMaker
-from src.entities.timesheet.timesheet_repository import TimesheetRepository
+from src.domain.locator import Locator, LocatorStorage
 from src.entities.translation.translation import Translation
 from src.utils.lira import Lira
-from src.utils.logger.logger import FLogger
 
 
-class TranslationFactory:
-  def __init__(
-    self,
-    tg: TeleBot,
-    timesheet_repo: TimesheetRepository,
-    message_maker: MessageMaker,
-    logger: FLogger,
-    lira: Lira,
-  ):
-    self.tg = tg
-    self.timesheetRepo = timesheet_repo
-    self.msgMaker = message_maker
-    self.logger = logger
-    self.lira = lira
+class TranslationFactory(LocatorStorage):
+  def __init__(self, locator: Locator):
+    super().__init__(locator)
+    self.lira: Lira = self.locator.lira()
     
   def make(
     self,
@@ -39,10 +25,7 @@ class TranslationFactory:
       self.lira.put(counter, id='translation_counter', cat='id_counter')
       self.lira.flush()
     return Translation(
-      tg=self.tg,
-      timesheet_repo=self.timesheetRepo,
-      message_maker=self.msgMaker,
-      logger=self.logger,
+      locator=self.locator,
       id=counter,
       event_predicat=event_predicat,
       chat_id=chat_id,

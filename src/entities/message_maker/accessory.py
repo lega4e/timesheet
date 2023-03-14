@@ -3,12 +3,13 @@ from typing import Union, List
 from telebot import TeleBot
 from telebot.types import Message
 
+from src.domain.locator import glob
 from src.entities.message_maker.piece import Piece, piece2message
 
 
 def send_message(
   tg: TeleBot,
-  chat_id: int,
+  chat_id,
   text: Union[str, List[Piece]],
   entities = None,
   disable_web_page_preview = True,
@@ -31,10 +32,9 @@ def send_message(
       callback_query_id=answer_callback_query_id,
       text=answer_callback_query_text or message,
     )
-  from src.domain.di import glob
-  logger = glob().flogger()
-  logger.message(text,
-                 entities=entities,
-                 emoji=emoji,
-                 disable_web_page_preview=disable_web_page_preview)
+    
+  glob().flogger().message(text,
+                           entities=entities,
+                           emoji=emoji,
+                           disable_web_page_preview=disable_web_page_preview)
   return m

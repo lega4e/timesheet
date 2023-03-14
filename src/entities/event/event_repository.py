@@ -1,18 +1,19 @@
 from typing import Optional
 
+from src.domain.locator import Locator, LocatorStorage
 from src.entities.event.event import Event
 from src.entities.event.event_factory import EventFactory
 from src.utils.lira import Lira
 
 
-class EventRepository:
+class EventRepository(LocatorStorage):
   def __init__(
     self,
-    event_factory: EventFactory,
-    lira: Lira,
+    locator: Locator,
   ):
-    self.lira = lira
-    self.eventFactory = event_factory
+    super().__init__(locator)
+    self.lira: Lira = self.locator.lira()
+    self.eventFactory: EventFactory = self.locator.eventFactory()
     self._events = self._deserializeEvents()
     
   def add(self, event: Event):

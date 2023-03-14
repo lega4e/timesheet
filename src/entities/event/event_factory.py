@@ -1,13 +1,15 @@
 from datetime import datetime
 from typing import Any
 
+from src.domain.locator import LocatorStorage, Locator
 from src.entities.event.event import Event, Place
 from src.utils.lira import Lira
 
 
-class EventFactory:
-  def __init__(self, lira: Lira):
-    self.lira = lira
+class EventFactory(LocatorStorage):
+  def __init__(self, locator: Locator):
+    super().__init__(locator)
+    self.lira: Lira = self.locator.lira()
     
   def make(
     self,

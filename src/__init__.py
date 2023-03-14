@@ -2,15 +2,13 @@ import locale
 import traceback
 
 import src.domain.handlers as handlers
+from src.domain.locator import glob
 
-from src.domain.di import glob
-
-
-di = glob()
-tg = di.tg()
-log = di.flogger()
-lira = di.lira()
-config = di.config()
+locator = glob()
+tg = locator.tg()
+log = locator.flogger()
+lira = locator.lira()
+config = locator.config()
 
 
 def clear_category(cat: str):
@@ -36,8 +34,4 @@ def main():
   set_locale()
   handlers.set_my_commands()
   log.info('Bot Started!')
-  while True:
-    try:
-      tg.polling(none_stop=True, interval=0)
-    except Exception:
-      log.error(traceback.format_exc())
+  tg.polling(none_stop=True, interval=0)

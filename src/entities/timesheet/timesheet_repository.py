@@ -1,18 +1,16 @@
 from typing import Optional
 
+from src.domain.locator import LocatorStorage, Locator
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_factory import TimesheetFactory
 from src.utils.lira import Lira
 
 
-class TimesheetRepository:
-  def __init__(
-    self,
-    timesheet_factory: TimesheetFactory,
-    lira: Lira,
-  ):
-    self.timesheetFactory = timesheet_factory
-    self.lira = lira
+class TimesheetRepo(LocatorStorage):
+  def __init__(self, locator: Locator):
+    super().__init__(locator)
+    self.timesheetFactory: TimesheetFactory = self.locator.timesheetFactory()
+    self.lira: Lira = self.locator.lira()
     self.timesheets = self._deserializeTimesheets()
   
   def create(self, name: str, pswd: str) -> Timesheet:

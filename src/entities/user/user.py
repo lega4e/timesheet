@@ -3,6 +3,7 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery
 from typing import Optional, Any
 
+from src.domain.locator import LocatorStorage, Locator
 from src.entities.event.event import Place
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_fields_parser import datetime_today
@@ -12,11 +13,12 @@ from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.emoji import Emoji
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.timesheet.timesheet import Timesheet
-from src.entities.timesheet.timesheet_repository import TimesheetRepository
+from src.entities.timesheet.timesheet_repository import TimesheetRepo
 from src.entities.translation.translation_factory import TranslationFactory
 from src.entities.translation.translation_repository import TranslationRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
+from src.utils.serialize import Serializable
 from src.utils.tg.tg_input_field import TgInputField
 from src.utils.tg.tg_input_form import TgInputForm
 from src.utils.tg.tg_state import TgState
@@ -25,17 +27,10 @@ from src.utils.tg.value_validators import *
 from src.utils.utils import insert_between, reduce_list
 
 
-class User(Notifier, TgState):
+class User(Notifier, TgState, Serializable, LocatorStorage):
   def __init__(
     self,
-    tg: TeleBot,
-    msg_maker: MessageMaker,
-    event_repository: EventRepository,
-    event_factory: EventFactory,
-    timesheet_repository: TimesheetRepository,
-    translation_factory: TranslationFactory,
-    translation_repo: TranslationRepo,
-    logger: FLogger,
+    locator: Locator,
     channel: str = None,
     chat: int = None,
     timesheet_id: int = None,
@@ -43,23 +38,22 @@ class User(Notifier, TgState):
   ):
     Notifier.__init__(self)
     TgState.__init__(self)
-    self.tg = tg
-    self.msgMaker = msg_maker
-    self.eventRepository = event_repository
-    self.eventFactory = event_factory
-    self.timesheetRepository = timesheet_repository
-    self.translationFactory = translation_factory
-    self.translationRepo = translation_repo
-    self.logger = logger
+    LocatorStorage.__init__(self, locator)
+    self.tg: TeleBot = self.locator.tg()
+    self.msgMaker: MessageMaker = self.locator.messageMaker()
+    self.eventRepository: EventRepository = self.locator.eventRepository()
+    self.eventFactory: EventFactory = self.locator.eventFactory()
+    self.timesheetRepository: TimesheetRepo = self.locator.timesheetRepo()
+    self.translationFactory: TranslationFactory = self.locator.translationFactory()
+    self.translationRepo: TranslationRepo = self.locator.translationRepo()
+    self.logger: FLogger = self.locator.flogger()
     self.tgState = None
-    if serialized is None:
+    if serialized is not None:
+      self.deserialize(serialized)
+    else:
       self.channel = channel
       self.chat = chat
       self.timesheetId = timesheet_id
-    else:
-      self.channel = serialized.get('channel')
-      self.chat = serialized['chat']
-      self.timesheetId = serialized['timesheet_id']
     
     
   # OVERRIDE METHODS
@@ -79,16 +73,19 @@ class User(Notifier, TgState):
   def _handleCallbackQuery(self, q: CallbackQuery):
     self.tg.answer_callback_query(q.id, text='Непонятно..')
 
-
-  # MAIN METHODS
   def serialize(self) -> {str : Any}:
     return {
       'channel': self.channel,
       'chat': self.chat,
       'timesheet_id': self.timesheetId,
     }
-  
-  
+    
+  def deserialize(self, serialized: {str: Any}):
+    self.channel = serialized.get('channel')
+    self.chat = serialized.get('chat')
+    self.timesheetId = serialized.get('timesheet_id')
+
+
   # HANDLERS FOR TELEGRAM
   # common commands
   def handleStart(self):

@@ -1,18 +1,16 @@
 from typing import Callable
 
+from src.domain.locator import LocatorStorage, Locator
 from src.entities.translation.translation import Translation
 from src.entities.translation.translation_factory import TranslationFactory
 from src.utils.lira import Lira
 
 
-class TranslationRepo:
-  def __init__(
-    self,
-    translation_factory: TranslationFactory,
-    lira: Lira,
-  ):
-    self.translationFactory = translation_factory
-    self.lira = lira
+class TranslationRepo(LocatorStorage):
+  def __init__(self, locator: Locator):
+    super().__init__(locator)
+    self.translationFactory: TranslationFactory = self.locator.translationFactory()
+    self.lira: Lira = self.locator.lira()
     self._translations = self._deserializeTranslations()
     for _, tr in self._translations.values():
       tr.connect()

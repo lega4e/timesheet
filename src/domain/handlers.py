@@ -1,12 +1,12 @@
 from telebot.types import BotCommand, CallbackQuery
 
-from src.domain.di import glob
+from src.domain.locator import glob
 from src.entities.message_maker.help import commands
 
-di = glob()
-tg = di.tg()
-log = di.flogger()
-users = di.userRepository()
+locator = glob()
+tg = locator.tg()
+log = locator.flogger()
+users = locator.userRepo()
 
 
 def user_finder(func):
@@ -17,7 +17,8 @@ def user_finder(func):
 
 def log_text(func):
   def wrapper(m, res=False):
-    log.text(m)
+    if m.chat.id > 0:
+      log.text(m)
     func(m, res)
   return wrapper
 

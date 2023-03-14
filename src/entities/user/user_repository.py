@@ -1,19 +1,19 @@
+from typing import Optional
+
+from src.domain.locator import Locator, LocatorStorage
 from src.entities.user.user import User
 from src.entities.user.user_factory import UserFactory
 from src.utils.lira import Lira
 
 
-class UserRepository:
-  def __init__(
-    self,
-    user_factory: UserFactory,
-    lira: Lira,
-  ):
-    self.userFactory = user_factory
-    self.lira = lira
+class UserRepo(LocatorStorage):
+  def __init__(self, locator: Locator):
+    super().__init__(locator)
+    self.userFactory: UserFactory = self.locator.userFactory()
+    self.lira: Lira = self.locator.lira()
     self.users = self._deserializeUsers()
 
-  def find(self, chat: int) -> User:
+  def find(self, chat: int) -> Optional[User]:
     if chat < 0:
       return None
     user = self.users.get(chat)

@@ -1,18 +1,16 @@
 import datetime as dt
 
+from src.domain.locator import LocatorStorage, Locator
 from src.entities.event.event import Event
+from src.entities.message_maker.emoji import Emoji
 from src.entities.message_maker.help import *
 from src.entities.message_maker.piece import *
 from src.utils.utils import reduce_list, insert_between
 
 
-class MessageMaker:
-  def __init__(self):
-    pass
-
-  @staticmethod
-  def greeting() -> str:
-    return 'Приветствую тебя!'
+class MessageMaker(LocatorStorage):
+  def __init__(self, locator: Locator):
+    super().__init__(locator)
 
   @staticmethod
   def help() -> [Piece]:
@@ -22,7 +20,7 @@ class MessageMaker:
     pieces.extend(
       reduce_list(lambda a, b: a + b,
                   insert_between(
-                    [[Piece(com.preview + '\n'), Piece(com.long, type='italic')]
+                    [[Piece(f'{Emoji.COMMAND} ' + com.preview + '\n'), Piece(com.long)]
                      for com in commands],
                     [Piece('\n\n')],
                   ),
