@@ -1,6 +1,8 @@
 import datetime as dt
+from typing import Optional
 
 from src.domain.locator import LocatorStorage, Locator
+from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.entities.message_maker.emoji import Emoji
 from src.entities.message_maker.help import *
@@ -33,14 +35,15 @@ class MessageMaker(LocatorStorage):
   @staticmethod
   def timesheetPost(
     events: [Event],
-    head: [Piece] = None,
-    tail: [Piece] = None
-  ) -> [Piece]:
-    assert(len(events) != 0)
+    sets: DestinationSettings,
+  ) -> Optional[List[Piece]]:
+    events = list(filter(lambda e: event_predicat(e, sets), events))
+    if len(events) == 0:
+      return None
     events = sorted(events, key=lambda e: e.start)
     paragraphs = []
-    if head is not None:
-      paragraphs.append(head)
+    if sets.head is not None:
+      paragraphs.append(sets.head)
     paragraph = []
     new_day = True
     for i in range(len(events)):
@@ -54,8 +57,8 @@ class MessageMaker(LocatorStorage):
       if i+1 == len(events) or is_other_day(events[i].start, events[i+1].start):
         paragraphs.append(paragraph)
         new_day = True
-    if tail is not None:
-      paragraphs.append(tail)
+    if sets.tail is not None:
+      paragraphs.append(sets.tail)
     result = [*paragraphs[0]]
     for p in paragraphs[1:]:
       result.extend([Piece('\n\n'), *p])
@@ -89,3 +92,13 @@ def get_day(date: dt.datetime, weekday: bool = True) -> str:
 
 def get_start_finish_time(start: dt.datetime, _: dt.datetime) -> str:
   return f'{start.strftime("%H:%M")}'
+
+
+def event_predicat(event: Event, sets: DestinationSettings):
+  if event.id in sets.blackList:
+    return False
+  for word in sets.wordsBlackList:
+    if word in event.desc:
+      return False
+  return True
+  

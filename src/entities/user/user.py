@@ -4,6 +4,8 @@ from telebot.types import CallbackQuery
 from typing import Optional, Any
 
 from src.domain.locator import LocatorStorage, Locator
+from src.entities.destination.destination import Destination
+from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Place
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_fields_parser import datetime_today
@@ -31,7 +33,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   def __init__(
     self,
     locator: Locator,
-    channel: str = None,
+    destination_id: int = None,
     chat: int = None,
     timesheet_id: int = None,
     serialized: {str : Any} = None,
@@ -41,6 +43,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     LocatorStorage.__init__(self, locator)
     self.tg: TeleBot = self.locator.tg()
     self.msgMaker: MessageMaker = self.locator.messageMaker()
+    self.destinationRepo = self.locator.destinationRepo()
     self.eventRepository: EventRepository = self.locator.eventRepository()
     self.eventFactory: EventFactory = self.locator.eventFactory()
     self.timesheetRepository: TimesheetRepo = self.locator.timesheetRepo()
@@ -51,7 +54,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if serialized is not None:
       self.deserialize(serialized)
     else:
-      self.channel = channel
+      self.destination: Destination = self.destinationRepo.find(destination_id)
       self.chat = chat
       self.timesheetId = timesheet_id
     
@@ -75,15 +78,15 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   def serialize(self) -> {str : Any}:
     return {
-      'channel': self.channel,
       'chat': self.chat,
       'timesheet_id': self.timesheetId,
+      'destination_id': None if self.destination is None else self.destination.id
     }
     
   def deserialize(self, serialized: {str: Any}):
-    self.channel = serialized.get('channel')
     self.chat = serialized.get('chat')
     self.timesheetId = serialized.get('timesheet_id')
+    self.destination = self.destinationRepo.find(serialized.get('destination_id'))
 
 
   # HANDLERS FOR TELEGRAM
@@ -429,11 +432,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     )
 
 
-  # post commands
-  def handleSetChannel(self):
+  # destination commands
+  def handleSetDestination(self):
     def on_field_entered(data: str):
-      self.channel = data
-      self.send(f'Канал успешно установлен на {self.channel}', emoji='ok')
+      self.destination = self.destinationRepo.findByChat(data)
+      self.send(f'Успешное подключение к {data}', emoji='ok')
       self.resetTgState()
       self.notify()
 
@@ -441,15 +444,59 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting='Введите ссылку на канал',
+      greeting='Введите ссылку на публичный канал или группу',
       validator=TgPublicGroupOrChannelValidator(),
-      terminate_message='Установка канала прервана',
+      terminate_message='Подключение прервано',
       on_field_entered=on_field_entered,
+    ))
+
+  def handleSetDestinationHead(self):
+    self.terminateSubstate()
+    if not self._checkDestination():
+      return
+  
+    def on_entered(data):
+      if not self._checkTimesheet():
+        return
+      self.destination.sets.head = data
+      self.destination.sets.notify()
+      self.send('Заголовок успешно установлен!', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите заголовок для подключения',
+      on_field_entered=on_entered,
+      validator=PieceValidator(),
+      terminate_message='Ввод заголовка прерван',
+    ))
+
+  def handleSetDestinationTail(self):
+    self.terminateSubstate()
+    if not self._checkDestination():
+      return
+  
+    def on_entered(data):
+      if not self._checkTimesheet():
+        return
+      self.destination.sets.tail = data
+      self.destination.sets.notify()
+      self.send('Подвал успешно установлен!', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите подвал для подключения',
+      on_field_entered=on_entered,
+      validator=PieceValidator(),
+      terminate_message='Ввод подвала прерван',
     ))
   
   def handlePost(self):
     self.terminateSubstate()
-    if not self._checkTimesheet() or not self._checkChannel():
+    if not self._checkTimesheet() or not self._checkDestination():
       return
     message = self._makePost(lambda e: e.start >= datetime_today())
     if message is not None:
@@ -467,10 +514,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   # translate commands
   def handleTranslate(self):
     self.terminateSubstate()
-    if not self._checkTimesheet() or not self._checkChannel():
+    if not self._checkTimesheet() or not self._checkDestination():
       return
     tr = self.translationFactory.make(
-      chat_id=self.channel,
+      destination_id=self.destination.id,
       timesheet_id=self.timesheetId,
     )
     if self.translationRepo.add(tr):
@@ -482,7 +529,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   def handleTranslateToMessage(self):
     def on_field_entered(data):
       tr = self.translationFactory.make(
-        chat_id=data[0],
+        destination_id=self.destinationRepo.findByChat(data[0]),
         timesheet_id=self.timesheetId,
         message_id=data[1]
       )
@@ -508,10 +555,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     
   def handleClearTranslations(self):
     self.terminateSubstate()
-    if not self._checkTimesheet() or not self._checkChannel():
+    if not self._checkTimesheet() or not self._checkDestination():
       return
     self.translationRepo.removeTranslations(
-      lambda tr: tr.chatId == self.channel or tr.chatId is None
+      lambda tr: tr.chatId == self.destination.chat or tr.chatId is None
     )
     self.send('Успешно удалили все трансляции для выбранного канала', emoji='ok')
 
@@ -530,7 +577,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     try:
       send_message(
         tg=self.tg,
-        chat_id=self.channel,
+        chat_id=self.destination.chat,
         text=message,
         disable_web_page_preview=True,
       )
@@ -554,9 +601,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return False
     return True
   
-  def _checkChannel(self) -> bool:
-    if self.channel is None:
-      self.send('Ошибкочка: канал не установлен, используйте /set_channel, '
+  def _checkDestination(self) -> bool:
+    if self.destination is None:
+      self.send('Ошибкочка: канал не установлен, используйте /set_destination, '
                 'чтобы установить канал', emoji='warning')
       return False
     return True
@@ -576,7 +623,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   def _sendPostFail(self, e = None):
     self.send(f'Произошла ошибка при попытке сделать пост :(\n\n'
               f'Возможные причины таковы:\n'
-              f'1) Не верно указано название канала (сейчас: {self.channel})\n'
+              f'1) Не верно указано название канала (сейчас: {self.destination.chat})\n'
               f'2) Бот не является администратором канала' +
               ('' if e is None else
               f'\n\nВот как выглядит сообщение об ошибки: {e}'),
@@ -588,7 +635,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if len(events) == 0:
       self.send('Нельзя запостить пустое расписание', emoji='warning')
       return None
-    return self.msgMaker.timesheetPost(events,
-                                       head=timesheet.head,
-                                       tail=timesheet.tail)
+    return self.msgMaker.timesheetPost(
+      events,
+      DestinationSettings.merge(timesheet.destinationSets, self.destination.sets),
+    )
 

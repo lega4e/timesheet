@@ -1,5 +1,4 @@
 import locale
-import traceback
 
 import src.domain.handlers as handlers
 from src.domain.locator import glob

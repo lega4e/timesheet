@@ -13,14 +13,12 @@ class UserFactory(LocatorStorage):
 
   def make(
     self,
-    channel: str = None,
     chat: int = None,
     timesheet_id: int = None,
     serialized: {str : Any} = None,
   ) -> User:
     return User(
       locator=self.locator,
-      channel=channel,
       chat=chat,
       timesheet_id=timesheet_id,
       serialized=serialized,

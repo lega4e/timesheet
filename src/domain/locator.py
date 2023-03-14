@@ -4,6 +4,7 @@ import os
 class Locator:
   def __init__(self):
     self._config = None
+    self._destinationRepo = None
     self._eventFactory = None
     self._eventRepository = None
     self._flogger = None
@@ -24,6 +25,12 @@ class Locator:
       from src.domain.config import Config
       self._config = Config()
     return self._config
+  
+  def destinationRepo(self):
+    if self._destinationRepo is None:
+      from src.entities.destination.destination_repo import DestinationRepo
+      self._destinationRepo = DestinationRepo(self)
+    return self._destinationRepo
   
   def eventFactory(self):
     if self._eventFactory is None:

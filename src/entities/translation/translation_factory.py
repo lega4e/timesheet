@@ -13,8 +13,8 @@ class TranslationFactory(LocatorStorage):
   def make(
     self,
     event_predicat: Callable = None,
-    chat_id: int = None,
     message_id: int = None,
+    destination_id: int = None,
     timesheet_id: int = None,
     serialized: {str: Any} = None,
   ) -> Translation:
@@ -28,8 +28,8 @@ class TranslationFactory(LocatorStorage):
       locator=self.locator,
       id=counter,
       event_predicat=event_predicat,
-      chat_id=chat_id,
       message_id=message_id,
+      destination_id=destination_id,
       timesheet_id=timesheet_id,
       serialized=serialized,
     )

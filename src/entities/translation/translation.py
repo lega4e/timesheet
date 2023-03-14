@@ -6,6 +6,9 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
 from src.domain.locator import LocatorStorage, Locator, glob
+from src.entities.destination.destination import Destination
+from src.entities.destination.destination_repo import DestinationRepo
+from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.entities.event.event_fields_parser import datetime_today
 from src.entities.message_maker.accessory import send_message
@@ -26,7 +29,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
     locator: Locator,
     id: int = None,
     event_predicat: Callable = None,
-    chat_id: int = None,
+    destination_id: int = None,
     message_id: int = None,
     timesheet_id: int = None,
     serialized: {str: Any} = None,
@@ -38,28 +41,32 @@ class Translation(Notifier, LocatorStorage, Serializable):
     self.msgMaker: MessageMaker = self.locator.messageMaker()
     self.logger: FLogger = self.locator.flogger()
     self.eventPredicat = event_predicat or Translation._defaultPredicat
+    self.destinationRepo: DestinationRepo = self.locator.destinationRepo()
     self._dispose = None
     if serialized is not None:
       self.deserialize(serialized)
     else:
       self.id = id
-      self.chatId = chat_id
+      self.destination = self.destinationRepo.find(destination_id)
       self.messageId = message_id
       self.timesheetId = timesheet_id
 
   def serialize(self) -> {str: Any}:
     return {
       'id': self.id,
-      'chat_id': self.chatId,
+      'destination_id': None if self.destination is None else self.destination.id,
       'message_id': self.messageId,
       'timesheet_id': self.timesheetId,
     }
   
   def deserialize(self, serialized: {str: Any}):
     self.id: int = serialized['id']
-    self.chatId = serialized['chat_id']
+    self.destination: Destination = self.destinationRepo.find(serialized.get('destination_id'))
     self.messageId: int = serialized['message_id']
     self.timesheetId: int = serialized['timesheet_id']
+    chat_id = serialized.get('chat_id')
+    if chat_id is not None:
+      self.destination = Destination(chat=chat_id)
 
   def connect(self) -> bool:
     timesheet = self.timesheetRepo.find(self.timesheetId)
@@ -77,7 +84,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
       try:
         self.messageId = send_message(
           tg=self.tg,
-          chat_id=self.chatId,
+          chat_id=self._destinationChat(),
           text=message,
           disable_web_page_preview=True,
         ).message_id
@@ -93,7 +100,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
     return self._translate(timesheet)
     
   def emitDestroy(self):
-    s = f'Translation Emit Destroy {self.chatId}, {self.messageId}'
+    s = f'Translation Emit Destroy {self._destinationChat()}, {self.messageId}'
     glob().flogger().info(s)
     self.notify(Translation.EMIT_DESTROY)
 
@@ -115,7 +122,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
       return False
     try:
       self.tg.edit_message_text(
-        chat_id=self.chatId,
+        chat_id=self._destinationChat(),
         message_id=self.messageId,
         text=message,
         entities=entities,
@@ -150,18 +157,28 @@ class Translation(Notifier, LocatorStorage, Serializable):
     
   def _getMessage(self, timesheet: Timesheet) -> [Piece]:
     events = list(timesheet.events(predicat=self.eventPredicat))
-    if len(events) == 0:
+    if len(events) == 0 or self.destination is None:
       title = self._getLoggerTitle()
       glob().flogger().info(f'{title} len(events) == 0 -> EmitDestroy')
       self.emitDestroy()
       return None
-    return self.msgMaker.timesheetPost(events,
-                                       head=timesheet.head,
-                                       tail=timesheet.tail)
+    return self.msgMaker.timesheetPost(
+      events,
+      DestinationSettings.merge(timesheet.destinationSets, self.destination.sets),
+    )
+    
   
   def _getLoggerTitle(self):
-    chat_id_str = str(self.chatId) if isinstance(self.chatId, int) else self.chatId[1:]
+    if self.destination is None:
+      chat_id_str = 'None'
+    else:
+      chat_id_str = (str(self._destinationChat())
+                     if isinstance(self._destinationChat(), int) else
+                     self._destinationChat()[1:])
     return f'Translate to t.me/{chat_id_str}/{self.messageId}'
+  
+  def _destinationChat(self):
+    return None if self.destination is None else self.destination.chat
   
   @staticmethod
   def _defaultPredicat(event: Event) -> bool:

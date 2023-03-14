@@ -90,13 +90,45 @@ def handle_set_timesheet(user, _, __=False):
     user.handleSetTimesheet()
   
   
-# post commands
-@tg.message_handler(commands=['set_channel'])
+# destination commands
+@tg.message_handler(commands=['set_destination'])
 @log_text
 @user_finder
-def handle_set_channel(user, _, __=False):
+def handle_set_destination(user, _, __=False):
   if user is not None:
-    user.handleSetChannel()
+    user.handleSetDestination()
+
+
+@tg.message_handler(commands=['set_destination_head'])
+@log_text
+@user_finder
+def handle_set_destination_head(user, _, __=False):
+  if user is not None:
+    user.handleSetDestinationHead()
+
+
+@tg.message_handler(commands=['set_destination_tail'])
+@log_text
+@user_finder
+def handle_set_destination_tail(user, _, __=False):
+  if user is not None:
+    user.handleSetDestinationTail()
+
+
+@tg.message_handler(commands=['set_destination_black_list'])
+@log_text
+@user_finder
+def handle_set_destination_black_list(user, _, __=False):
+  if user is not None:
+    user.handleSetDestinationBlackList()
+
+
+@tg.message_handler(commands=['set_destination_word_black_list'])
+@log_text
+@user_finder
+def handle_set_destination_word_black_list(user, _, __=False):
+  if user is not None:
+    user.handleSetDestinationWordBlackList()
 
 
 @tg.message_handler(commands=['post'])
