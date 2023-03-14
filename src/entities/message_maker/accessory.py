@@ -34,6 +34,7 @@ def send_message(
     )
     
   glob().flogger().message(text,
+                           chat_id=chat_id,
                            entities=entities,
                            emoji=emoji,
                            disable_web_page_preview=disable_web_page_preview)

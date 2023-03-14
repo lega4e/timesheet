@@ -115,20 +115,20 @@ def handle_set_destination_tail(user, _, __=False):
     user.handleSetDestinationTail()
 
 
-@tg.message_handler(commands=['set_destination_black_list'])
-@log_text
-@user_finder
-def handle_set_destination_black_list(user, _, __=False):
-  if user is not None:
-    user.handleSetDestinationBlackList()
-
-
-@tg.message_handler(commands=['set_destination_word_black_list'])
-@log_text
-@user_finder
-def handle_set_destination_word_black_list(user, _, __=False):
-  if user is not None:
-    user.handleSetDestinationWordBlackList()
+# @tg.message_handler(commands=['set_destination_black_list'])
+# @log_text
+# @user_finder
+# def handle_set_destination_black_list(user, _, __=False):
+#   if user is not None:
+#     user.handleSetDestinationBlackList()
+#
+#
+# @tg.message_handler(commands=['set_destination_word_black_list'])
+# @log_text
+# @user_finder
+# def handle_set_destination_word_black_list(user, _, __=False):
+#   if user is not None:
+#     user.handleSetDestinationWordBlackList()
 
 
 @tg.message_handler(commands=['post'])

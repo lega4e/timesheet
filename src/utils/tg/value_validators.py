@@ -1,6 +1,7 @@
 import re
 
 from abc import abstractmethod
+from copy import copy
 from typing import Callable, Union, List
 
 from chakert import Typograph
@@ -29,14 +30,17 @@ class ValidatorObject:
 
 
 class Validator:
-  @abstractmethod
   def validate(self, o: ValidatorObject) -> ValidatorObject:
+    return self._validate(copy(o))
+
+  @abstractmethod
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     pass
 
 
 
 class TextValidator(Validator):
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     o.data = Typograph('ru').typograph_text(o.message.text, 'ru')
     return o
 
@@ -45,7 +49,7 @@ class FunctionValidator(Validator):
   def __init__(self, function: Callable):
     self.function = function
   
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     return self.function(o)
   
   
@@ -54,7 +58,7 @@ class ChainValidator(Validator):
   def __init__(self, validators: [Validator]):
     self.validators = validators
   
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     for validator in self.validators:
       o = validator.validate(o)
       if not o.success:
@@ -62,25 +66,38 @@ class ChainValidator(Validator):
     return o
   
   
+
+class OrValidator(Validator):
+  def __init__(self, validators: [Validator]):
+    self.validators = validators
+  
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
+    for validator in self.validators:
+      obj = validator.validate(o)
+      if obj.success:
+        return obj
+    return obj
+  
+  
   
 class IntValidator(Validator):
   def __init__(self, error: str = None):
     self.error = error or 'Нужно ввести просто число'
 
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     if re.match(r'^\d+$', o.message.text) is None:
       o.success, o.error, o.emoji = False, self.error, 'warning'
     else:
       o.data = int(o.message.text)
     return o
-    
+ 
 
 
 class PieceValidator(Validator):
   def __init__(self, let_none = True):
     self.letNone = let_none
     
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     o.data = (None if self.letNone and o.message.text.lower() in ['none', 'нет']
               else [Piece(o.message.text)])
     return o
@@ -101,7 +118,7 @@ class IdValidator(Validator):
     self.error = error
     self.isPassword = is_password
  
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     regexpr = r'^\w+$' if self.isPassword else r'^[a-zA-Z_]\w+$'
     if re.match(regexpr, o.message.text) is None:
       o.success, o.error, o.emoji = False, self.error, 'warning'
@@ -121,7 +138,7 @@ class TgPublicGroupOrChannelValidator(Validator):
       Piece('https://t.me/channel_or_group_login', type='code')
     ]
   
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     m = re.match(r'^(https?://)?t\.me/(\w+)$', o.message.text)
     if m is not None:
       o.data = '@' + m.group(2)
@@ -142,7 +159,7 @@ class TgMessageUrlValidator(Validator):
       Piece('https://t.me/channel_or_group_login/5', type='code')
     ]
   
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     m = re.match(r'^(https?://)?t\.me/(\w+)/(\d+)$', o.message.text)
     if m is not None:
       o.data = ('@' + m.group(2), int(m.group(3)))
@@ -156,7 +173,7 @@ class DatetimeValidator(Validator):
   def __init__(self, error: str = None):
     self.error = error
   
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     datetime, error = parse_datetime(o.message.text)
     if datetime is None:
       o.success, o.error, o.emoji = False, self.error or error, 'warning'
@@ -167,7 +184,7 @@ class DatetimeValidator(Validator):
 
 
 class CorrectDatetimeValidator(Validator):
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     o.data = correct_datetime(o.data)
     return o
 
@@ -177,7 +194,7 @@ class UrlValidator(Validator):
   def __init__(self, error: str = None):
     self.error = error or 'Что-то не похоже на ссылку :( давай ещё разок'
   
-  def validate(self, o: ValidatorObject) -> ValidatorObject:
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
     if re.match(r'^https?://.+\..+$', o.message.text) is None:
       o.success, o.error, o.emoji = False, self.error, 'fail'
     else:

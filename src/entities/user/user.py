@@ -130,8 +130,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     ))
 
   def handleEditEvent(self):
-    def on_field_entered(data):
-      event = list(self.findTimesheet().events(lambda e: e.id == data))[0]
+    def on_field_entered(event):
       state = None
       
       def on_event_field_entered(value, field_name: str):
@@ -201,13 +200,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting='Введите ID мероприятия',
+      greeting='Введите ID мероприятия или слова, содержащиеся в названии',
       terminate_message='Прервано редактирование мероприятия',
       on_field_entered=on_field_entered,
-      validator=ChainValidator([
-        IntValidator(error='ID — это просто число, его можно посмотреть командой /show_events'),
-        FunctionValidator(self._eventIdFoundValidator),
-      ]),
+      validator=self._eventValidator(),
     ))
     
   def handleShowEvents(self):
@@ -227,22 +223,18 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return
     
     def on_field_entered(data):
-      timesheet = self.timesheetRepository.find(self.timesheetId)
-      timesheet.removeEvent(id=data)
-      self.eventRepository.remove(id=data)
+      self.findTimesheet().removeEvent(id=data.id)
+      self.eventRepository.remove(id=data.id)
       self.send('Мероприятие успешно удалено', emoji='ok')
       self.resetTgState()
 
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting='Введите ID мероприятия',
+      greeting='Введите ID мероприятия или слова, содержащиеся в названии',
       terminate_message='Прервано удаление мероприятия',
       on_field_entered=on_field_entered,
-      validator=ChainValidator([
-        IntValidator(error='ID — это просто число, его можно посмотреть командой /show_events'),
-        FunctionValidator(self._eventIdFoundValidator),
-      ]),
+      validator=self._eventValidator(),
     ))
 
 
@@ -618,8 +610,49 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         + 'Используйте /show_events, чтобы посмотреть события',
         'warning'
       )
+    else:
+      o.data = events[0]
     return o
-      
+  
+  def _eventFoundByWordsValidator(self, o: ValidatorObject):
+    words = o.data.split()
+    
+    def predicat(event):
+      for word in words:
+        if word.lower() not in event.desc.lower():
+          return False
+      return True
+    
+    events = list(self.findTimesheet().events(predicat=predicat))
+    if len(events) == 0:
+      o.success, o.error, o.emoji = (
+        False,
+        'Мероприятий, содержащих все эти слова, не найдено :(',
+        'fail'
+      )
+    elif len(events) > 1:
+      o.success, o.error, o.emoji = (
+        False,
+        'Мероприятий, содержащих все эти слова, найдено сразу несколько:\n\n'
+        + '\n'.join([self.msgMaker.eventPreview(event) for event in events]),
+        'warning'
+      )
+    else:
+      o.data = events[0]
+    return o
+  
+  def _eventValidator(self):
+    def validate(o: ValidatorObject) -> ValidatorObject:
+      obj = IntValidator().validate(o)
+      if obj.success:
+        return self._eventIdFoundValidator(obj)
+      return ChainValidator([
+        TextValidator(),
+        FunctionValidator(self._eventFoundByWordsValidator),
+      ]).validate(o)
+    
+    return FunctionValidator(validate)
+
   def _sendPostFail(self, e = None):
     self.send(f'Произошла ошибка при попытке сделать пост :(\n\n'
               f'Возможные причины таковы:\n'

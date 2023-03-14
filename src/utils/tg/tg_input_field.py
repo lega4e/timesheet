@@ -60,6 +60,8 @@ class TgInputField(TgState):
     return True
 
   def _handleCallbackQuery(self, q: CallbackQuery):
+    if self.buttons is None:
+      return False
     for row in self.buttons:
       for button in row:
         if q.data == button.qb:

@@ -87,7 +87,7 @@ def get_day(date: dt.datetime, weekday: bool = True) -> str:
   return (str(int(date.strftime('%d'))) + ' '+
           date.strftime('%B') + (', ' + date.strftime('%A')
                                  if weekday else
-                                 ''))
+                                 '')).lower()
 
 
 def get_start_finish_time(start: dt.datetime, _: dt.datetime) -> str:

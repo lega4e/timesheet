@@ -32,6 +32,7 @@ class FLogger(LocatorStorage):
   def message(
     self,
     pieces: Union[str, List[Piece]],
+    chat_id = None,
     entities = None,
     emoji: str = None,
     **kwargs,
@@ -39,6 +40,8 @@ class FLogger(LocatorStorage):
     if self.tg is None:
       return
     for chat in self.chats:
+      if chat == chat_id:
+        continue
       if entities is None:
         message, ent = piece2message(pieces, emoji=emoji)
       else:
