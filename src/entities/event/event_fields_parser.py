@@ -1,8 +1,10 @@
 import datetime as dt
 import re
 
+from src.entities.message_maker.piece import Piece
 
-def parse_datetime(text: str) -> (dt.datetime, str):
+
+def parse_datetime(text: str) -> (dt.datetime, [Piece]):
   formats = [
     '%d %B %Y %H:%M',
     '%d %B %Y %H:%M',
@@ -16,13 +18,17 @@ def parse_datetime(text: str) -> (dt.datetime, str):
       return dt.datetime.strptime(text, fmt), None
     except:
       continue
-  return (None, 'Не получилось считать дату время :( Введите время в одном из следующих форматов:\n'
-                + '\n'.join([dt.datetime.now().strftime(fmt) for fmt in formats]))
+  return (None,
+          [Piece('Не получилось считать дату время '
+                 ':( Введите время в одном из следующих форматов:\n'),
+           Piece('\n'.join([dt.datetime.now().strftime(fmt) for fmt in formats]),
+                 type='code')])
+
 
 def correct_datetime(
   value: dt.datetime,
   isfuture: bool = False,
-  delta: dt.timedelta = dt.timedelta()
+  delta: dt.timedelta = dt.timedelta(weeks=4),
 ) -> dt.datetime:
   value = datetime_copy_with(value, dt.datetime.now().year)
   return (datetime_copy_with(value, value.year+1)

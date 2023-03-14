@@ -1,38 +1,31 @@
-import re
-
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-from telebot.types import MenuButtonCommands, CallbackQuery
+from telebot.types import CallbackQuery
 from typing import Optional, Any
 
-from src.entities.event.event import Event
+from src.entities.event.event import Place
 from src.entities.event.event_factory import EventFactory
 from src.entities.event.event_fields_parser import datetime_today
 from src.entities.event.event_repository import EventRepository
-from src.entities.event.event_tg_editor import EventTgEditor
-from src.entities.event.event_tg_maker import EventTgMaker
+from src.entities.event.event_tg_maker import TgEventInputFieldsConstructor
 from src.entities.message_maker.accessory import send_message
 from src.entities.message_maker.emoji import Emoji
 from src.entities.message_maker.message_maker import MessageMaker
-from src.entities.message_maker.piece import Piece
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepository
 from src.entities.translation.translation_factory import TranslationFactory
 from src.entities.translation.translation_repository import TranslationRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
+from src.utils.tg.tg_input_field import TgInputField
+from src.utils.tg.tg_input_form import TgInputForm
+from src.utils.tg.tg_state import TgState
+from src.utils.tg.tg_state_branch import TgStateBranch, BranchButton
+from src.utils.tg.value_validators import *
 from src.utils.utils import insert_between, reduce_list
 
 
-class UserState:
-  FREE = 'FREE'
-  CREATING_EVENT = 'CREATING_EVENT'
-  EDITING_EVENT = 'EDITING_EVENT'
-  ENTER_TIMESHEET_HEAD = 'ENTER_TIMESHEET_HEAD'
-  ENTER_TIMESHEET_TAIL = 'ENTER_TIMESHEET_TAIL'
-
-
-class User(Notifier):
+class User(Notifier, TgState):
   def __init__(
     self,
     tg: TeleBot,
@@ -48,15 +41,17 @@ class User(Notifier):
     timesheet_id: int = None,
     serialized: {str : Any} = None,
   ):
-    super().__init__()
+    Notifier.__init__(self)
+    TgState.__init__(self)
     self.tg = tg
     self.msgMaker = msg_maker
     self.eventRepository = event_repository
+    self.eventFactory = event_factory
     self.timesheetRepository = timesheet_repository
     self.translationFactory = translation_factory
     self.translationRepo = translation_repo
     self.logger = logger
-    self.state = UserState.FREE
+    self.tgState = None
     if serialized is None:
       self.channel = channel
       self.chat = chat
@@ -65,15 +60,27 @@ class User(Notifier):
       self.channel = serialized.get('channel')
       self.chat = serialized['chat']
       self.timesheetId = serialized['timesheet_id']
-    self.eventTgMaker = EventTgMaker(
-      tg=self.tg,
-      event_factory=event_factory,
-      chat=self.chat,
-      on_created=self._onEventCreated,
-    )
-    self.eventTgEditor: Optional[EventTgEditor] = None
-    self._setChatMenuButton()
+    
+    
+  # OVERRIDE METHODS
+  def _onTerminate(self):
+    pass
 
+  def _handleMessage(self, m: Message):
+    self.send('Непонятно.. что ты хочешь..? напиши /help', emoji='fail')
+    
+  def _handleMessageBefore(self, m: Message) -> bool:
+    if m.text[0] == '/':
+      self.terminateSubstate()
+      self.send('Неизвестная команда..', emoji='fail')
+      return True
+    return False
+
+  def _handleCallbackQuery(self, q: CallbackQuery):
+    self.tg.answer_callback_query(q.id, text='Непонятно..')
+
+
+  # MAIN METHODS
   def serialize(self) -> {str : Any}:
     return {
       'channel': self.channel,
@@ -85,131 +92,331 @@ class User(Notifier):
   # HANDLERS FOR TELEGRAM
   # common commands
   def handleStart(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     self.send('Приветствуют тебя, мастер, заведующий расписанием!')
 
   def handleHelp(self):
-    self._checkAndMakeFree()
-    message = self.msgMaker.help()
-    self.send(message=message)
+    self.terminateSubstate()
+    self.send(message=self.msgMaker.help())
 
 
   # event commands
   def handleMakeEvent(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    self.state = UserState.CREATING_EVENT
-    self.eventTgMaker.onStart()
-  
+    
+    def on_form_entered(data: []):
+      event = self.eventFactory.make(desc=data[0],
+                                     start=data[1],
+                                     finish=None,
+                                     place=Place(data[2]),
+                                     url=data[3])
+      self.eventRepository.add(event)
+      self.findTimesheet().addEvent(event.id)
+      self.send(f'Мероприятие #{event.id} успешно добавлено в расписание!', emoji='ok')
+      self.resetTgState()
+
+    constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
+    self.setTgState(TgInputForm(
+      tg=self.tg,
+      chat=self.chat,
+      terminate_message='Создание мероприятия преравно',
+      on_form_entered=on_form_entered,
+      fields=[constructor.make_name_input_field(lambda _: True),
+              constructor.make_datetime_input_field(lambda _: True),
+              constructor.make_place_input_field(lambda _: True),
+              constructor.make_url_input_field(lambda _: True)]
+    ))
+
+  def handleEditEvent(self):
+    def on_field_entered(data):
+      event = list(self.findTimesheet().events(lambda e: e.id == data))[0]
+      state = None
+      
+      def on_event_field_entered(value, field_name: str):
+        print(value, field_name)
+        if field_name == 'name':
+          event.desc = value
+        elif field_name == 'start':
+          event.start = value
+        elif field_name == 'place':
+          event.place.name = value
+        elif field_name == 'url':
+          event.url = value
+        self.send('Успех!', emoji='ok')
+        state.updateMessage()
+        state.resetTgState()
+        event.notify()
+
+      def complete():
+        self.send('Редактирование мероприятия завершено', emoji='ok')
+        self.resetTgState()
+      
+      constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
+      state = TgStateBranch(
+        tg=self.tg,
+        chat=self.chat,
+        make_buttons=lambda: [
+          [BranchButton(
+             'Название',
+             constructor.make_name_input_field(
+               lambda value: on_event_field_entered(value, 'name')
+             )
+           ),
+           BranchButton(
+             'Начало',
+             constructor.make_datetime_input_field(
+               lambda value: on_event_field_entered(value, 'start')
+             )
+           )],
+          [BranchButton(
+             'Место/Орг.',
+             constructor.make_place_input_field(
+               lambda value: on_event_field_entered(value, 'place')
+             )
+           ),
+           BranchButton(
+             'Ссыль',
+             constructor.make_url_input_field(
+               lambda value: on_event_field_entered(value, 'url')
+             )
+           )],
+          [BranchButton('Завершить', action=complete, callback_answer='Завершено')],
+        ],
+        make_message=lambda: [
+          Piece(f'Название:   {event.desc}\n'
+                f'Начало:     {event.start.strftime("%x %X")}\n'
+                f'Место/Орг.: {event.place.name}\n'
+                f'URL:        {event.url}',
+                type='code')
+        ],
+        on_terminate=lambda: self.send('Редактирование мероприятия заверщено', emoji='ok')
+      )
+      self.setTgState(state)
+
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ID мероприятия',
+      terminate_message='Прервано редактирование мероприятия',
+      on_field_entered=on_field_entered,
+      validator=ChainValidator([
+        IntValidator(error='ID — это просто число, его можно посмотреть командой /show_events'),
+        FunctionValidator(self._eventIdFoundValidator),
+      ]),
+    ))
+    
   def handleShowEvents(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    events = sorted(list(self._findTimesheet().events()),
+    events = sorted(list(self.findTimesheet().events()),
                     key=lambda e: e.start)
     if len(events) == 0:
-      self.send('Пусто :(', fail=True)
+      self.send('Пусто :(', emoji='fail')
     else:
       self.send('\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
-  def handleEditEvent(self, text):
-    self._checkAndMakeFree()
-    event = self._checkFindEventByTextId(text, '/edit_event')
-    if event is None:
+  def handleRemoveEvent(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet():
       return
-    self.eventTgEditor = EventTgEditor(
-      tg=self.tg,
-      on_finish=self._onEventEditorFinish,
-      on_edit_field=event.notify,
-      event=event,
-      chat_id=self.chat,
-    )
-    self.state = UserState.EDITING_EVENT
-    self.eventTgEditor.onStart()
+    
+    def on_field_entered(data):
+      timesheet = self.timesheetRepository.find(self.timesheetId)
+      timesheet.removeEvent(id=data)
+      self.eventRepository.remove(id=data)
+      self.send('Мероприятие успешно удалено', emoji='ok')
+      self.resetTgState()
 
-  def handleRemoveEvent(self, text):
-    self._checkAndMakeFree()
-    event = self._checkFindEventByTextId(text, '/remove_event')
-    if event is None:
-      return
-    timesheet = self.timesheetRepository.find(self.timesheetId)
-    timesheet.removeEvent(event.id)
-    self.eventRepository.remove(event.id)
-    self.send('Мероприятие успешно удалено', ok=True)
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ID мероприятия',
+      terminate_message='Прервано удаление мероприятия',
+      on_field_entered=on_field_entered,
+      validator=ChainValidator([
+        IntValidator(error='ID — это просто число, его можно посмотреть командой /show_events'),
+        FunctionValidator(self._eventIdFoundValidator),
+      ]),
+    ))
 
 
   # timesheet commands
-  def handleMakeTimesheet(self, text: str = None):
-    self._checkAndMakeFree()
-    name, pswd = self._logpassCheck(text, '/make_timesheet')
-    if name is None or pswd is None:
-      return
-    timesheets = [tm[1]
-                  for tm in self.timesheetRepository.timesheets.values()
-                  if tm[1].name == name]
-    if len(timesheets) != 0:
-      self.send([Piece('Расписание с именем '),
-                 Piece(f'{name}', type='code'),
-                 Piece(' уже есть :( давай по новой')],
-                fail=True)
-      return
-    self.timesheetId = self.timesheetRepository.create(name=name,pswd=pswd).id
-    self.send([Piece('Расписание '),
-               Piece(f'{name}', type='code'),
-               Piece(' с паролем '),
-               Piece(f'{pswd}', type='code'),
-               Piece(' успешно создано')],
-              ok=True)
-    self.notify()
+  def handleMakeTimesheet(self):
+    def name_validator(o: ValidatorObject):
+      timesheet = self.timesheetRepository.findByName(o.data)
+      if timesheet is not None:
+        o.success = False
+        o.error = [Piece('Расписание с именем '),
+                   Piece(f'{o.data}', type='code'),
+                   Piece(' уже есть :( давай по новой')]
+        o.emoji = 'fail'
+      return o
     
-  def handleSetTimesheet(self, text: str = None):
-    self._checkAndMakeFree()
-    name, pswd = self._logpassCheck(text, '/set_timesheet')
-    if name is None or pswd is None:
-      return
-    timesheets = [tm[1]
-                  for tm in self.timesheetRepository.timesheets.values()
-                  if tm[1].name == name]
-    if len(timesheets) == 0:
-      self.send([Piece('Расписание с названием '),
+    def on_form_entered(data: []):
+      name = data[0]
+      pswd = data[1]
+      self.timesheetId = self.timesheetRepository.create(name=name,pswd=pswd).id
+      self.send([Piece('Расписание '),
                  Piece(f'{name}', type='code'),
-                 Piece(' не найдено :(')],
-                fail=True)
-      return
-    if pswd != timesheets[0].password:
-      self.send('Пароль не подходит :(', fail=True)
-      return
-    self.timesheetId = timesheets[0].id
-    self.send([Piece('Успешно выбрано расписание '),
-               Piece(f'{name}', type='code')],
-              ok=True)
-    self.notify()
+                 Piece(' с паролем '),
+                 Piece(f'{pswd}', type='code'),
+                 Piece(' успешно создано')],
+                emoji='ok')
+      self.resetTgState()
+      self.notify()
+    
+    self.terminateSubstate()
+    self.setTgState(TgInputForm(
+      tg=self.tg,
+      chat=self.chat,
+      terminate_message='Создание расписания преравно',
+      on_form_entered=on_form_entered,
+      fields=[
+        TgInputField(
+          tg=self.tg,
+          chat=self.chat,
+          greeting='Введите название',
+          validator=ChainValidator(validators=[
+            IdValidator(error=IdValidator.NAME_ERROR_MESSAGE),
+            FunctionValidator(name_validator),
+          ]),
+          on_field_entered=lambda _: None,
+        ),
+        TgInputField(
+          tg=self.tg,
+          chat=self.chat,
+          greeting='Введите пароль',
+          validator=IdValidator(error=IdValidator.PSWD_ERROR_MESSAGE),
+          on_field_entered=lambda _: None,
+        )
+      ]
+    ))
+    
+  def handleSetTimesheet(self):
+    tm = {}
+    
+    def name_validator(o: ValidatorObject):
+      timesheet = self.timesheetRepository.findByName(o.data)
+      if timesheet is None:
+        o.success = False
+        o.error = [Piece('Расписание с названием '),
+                   Piece(f'{o.data}', type='code'),
+                   Piece(' не найдено :( Существующие расписания '),
+                   Piece('можно посмотреть командой /show_timesheet_list')]
+        o.emoji = 'fail'
+      elif timesheet.id == self.timesheetId:
+        o.success = False
+        o.error = 'Это расписание уже выбрано..'
+        o.emoji = 'fail'
+      else:
+        tm['name'] = o.data
+      return o
+    
+    def pswd_validator(o: ValidatorObject):
+      timesheet = self.timesheetRepository.findByName(tm['name'])
+      if timesheet.password != o.data:
+        o.success = False
+        o.error = 'Пароль не подходит'
+        o.emoji = 'fail'
+      return o
+    
+    def on_form_entered(data: []):
+      timesheet = self.timesheetRepository.findByName(data[0])
+      self.timesheetId = timesheet.id
+      self.send([Piece('Успешно выбрано расписание '),
+                 Piece(f'{data[0]}', type='code')],
+                emoji='ok')
+      self.resetTgState()
+      self.notify()
 
+    self.terminateSubstate()
+    self.setTgState(TgInputForm(
+      tg=self.tg,
+      chat=self.chat,
+      terminate_message='Выбор расписания прерван',
+      on_form_entered=on_form_entered,
+      fields=[
+        TgInputField(
+          tg=self.tg,
+          chat=self.chat,
+          greeting='Введите название расписания',
+          validator=ChainValidator([
+            IdValidator(error=IdValidator.NAME_ERROR_MESSAGE),
+            FunctionValidator(name_validator),
+          ]),
+          on_field_entered=lambda _: None,
+        ),
+        TgInputField(
+          tg=self.tg,
+          chat=self.chat,
+          greeting='Введите пароль',
+          validator=ChainValidator([
+            IdValidator(error=IdValidator.PSWD_ERROR_MESSAGE),
+            FunctionValidator(pswd_validator),
+          ]),
+          on_field_entered=lambda _: None,
+        ),
+      ],
+    ))
+    
   def handleSetTimesheetHead(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    self.state = UserState.ENTER_TIMESHEET_HEAD
-    self.send('Введите заголовок расписания', edit=True)
+    
+    def on_entered(data):
+      if not self._checkTimesheet():
+        return
+      self.findTimesheet().setHead(data)
+      self.send('Заголовок успешно установлен!', emoji='ok')
+      self.resetTgState()
+      
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите заголовок расписания',
+      on_field_entered=on_entered,
+      validator=PieceValidator(),
+      terminate_message='Ввод заголовка прерван',
+    ))
 
   def handleSetTimesheetTail(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    self.state = UserState.ENTER_TIMESHEET_TAIL
-    self.send('Введите подвал расписания', edit=True)
+  
+    def on_entered(data):
+      if not self._checkTimesheet():
+        return
+      self.findTimesheet().setTail(data)
+      self.send('Подвал успешно установлен!', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите подвал расписания',
+      on_field_entered=on_entered,
+      validator=PieceValidator(),
+      terminate_message='Ввод подвала прерван',
+    ))
 
   def handleShowTimesheetInfo(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    self.send([Piece(f'Название: {self._findTimesheet().name}\n'
-                     f'Пароль:   {self._findTimesheet().password}',
+    self.send([Piece(f'Название: {self.findTimesheet().name}\n'
+                     f'Пароль:   {self.findTimesheet().password}',
                      type='code')])
 
   def handleShowTimesheetList(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     names = [tm.name for _, tm in self.timesheetRepository.timesheets.values()]
     self.send(
       [Piece('Существующие расписания:\n')] +
@@ -226,237 +433,149 @@ class User(Notifier):
 
 
   # post commands
-  def handleSetChannel(self, text):
-    self._checkAndMakeFree()
-    m = re.match(r'(https?://)?t\.me/(\w+)', text)
-    if m is not None:
-      channel = '@' + m.group(2)
-    else:
-      m = re.match(r'@?(\w+)', text)
-      if m is not None:
-        channel = '@' + m.group(1)
-      else:
-        self.send([Piece('Аргументом нужно добавить идентификатор (логин) канала вида '),
-                   Piece('@xxx', type='code'),
-                   Piece(' или ссылку на канал: '),
-                   Piece('/set_channel <логин или ссылка>', type='code')],
-                  warning=True)
-        return
-    self.channel = channel
-    self.send(f'Канал успешно установлен на {self.channel}', ok=True)
-    self.notify()
+  def handleSetChannel(self):
+    def on_field_entered(data: str):
+      self.channel = data
+      self.send(f'Канал успешно установлен на {self.channel}', emoji='ok')
+      self.resetTgState()
+      self.notify()
+
+    self.terminateSubstate()
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ссылку на канал',
+      validator=TgPublicGroupOrChannelValidator(),
+      terminate_message='Установка канала прервана',
+      on_field_entered=on_field_entered,
+    ))
   
   def handlePost(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet() or not self._checkChannel():
+      return
     message = self._makePost(lambda e: e.start >= datetime_today())
     if message is not None:
       self.post(message)
     
   def handlePostPreview(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
     message = self._makePost(lambda e: e.start >= datetime_today())
     if message is not None:
       self.send(message)
 
+
   # translate commands
-  def handleTranslate(self, text):
-    self._checkAndMakeFree()
+  def handleTranslate(self):
+    self.terminateSubstate()
     if not self._checkTimesheet() or not self._checkChannel():
       return
-    if text == '':
-      tr = self.translationFactory.make(
-        chat_id=self.channel,
-        timesheet_id=self.timesheetId,
-      )
-      if self.translationRepo.add(tr):
-        self.send('Успешно добавили трансляцию', ok=True)
-      else:
-        self._sendPostFail()
-      return
-    channel = self.channel
-    m = re.match(r'(https?://)?t\.me/(\w+)/(\d+)', text)
-    if m is not None:
-      channel = '@' + m.group(2)
-      message_id = int(m.group(3))
-    else:
-      m = re.match(r'\d+', text)
-      if m is not None:
-        message_id = int(m.group(0))
-      else:
-        self.send('ID сообщения — это просто число или ссылка на пост!!', warning=True)
-        return
-    print(channel, message_id)
     tr = self.translationFactory.make(
-      chat_id=channel,
+      chat_id=self.channel,
       timesheet_id=self.timesheetId,
-      message_id=message_id
     )
-    if self.translationRepo.add(tr) and tr.updatePost():
-      self.send('Успешно добавили трансляцию в сообщение '
-                f'https://t.me/{channel[1:]}/{message_id}',
-                ok=True)
+    if self.translationRepo.add(tr):
+      self.send('Успешно добавили трансляцию', emoji='ok')
     else:
-      self.send('Что-то пошло не так :(', fail=True)
+      self._sendPostFail()
+    return
+    
+  def handleTranslateToMessage(self):
+    def on_field_entered(data):
+      tr = self.translationFactory.make(
+        chat_id=data[0],
+        timesheet_id=self.timesheetId,
+        message_id=data[1]
+      )
+      if self.translationRepo.add(tr) and tr.updatePost():
+        self.send('Успешно добавили трансляцию в сообщение '
+                  f'https://t.me/{data[0][1:]}/{data[1]}',
+                  emoji='ok')
+      else:
+        self.send('Что-то пошло не так..', emoji='fail')
+      self.resetTgState()
+  
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ссылку на пост',
+      validator=TgMessageUrlValidator(),
+      terminate_message='Добавление трансляции прервано',
+      on_field_entered=on_field_entered,
+    ))
     
   def handleClearTranslations(self):
-    self._checkAndMakeFree()
+    self.terminateSubstate()
     if not self._checkTimesheet() or not self._checkChannel():
       return
     self.translationRepo.removeTranslations(
       lambda tr: tr.chatId == self.channel or tr.chatId is None
     )
-    self.send('Успешно удалили все трансляции для выбранного канала', ok=True)
-
-
-  # other handlers
-  def handleText(self, text: str):
-    if self.state == UserState.FREE:
-      self.send('Непонятно.. что ты хочешь..? напиши /help', fail=True)
-    elif self.state == UserState.CREATING_EVENT:
-      self.eventTgMaker.handleText(text)
-    elif self.state == UserState.EDITING_EVENT:
-      self.eventTgEditor.handleText(text)
-    elif self.state == UserState.ENTER_TIMESHEET_HEAD:
-      self.state = UserState.FREE
-      if not self._checkTimesheet():
-        return
-      self._findTimesheet().setHead(
-        [Piece(text)] if text.lower() != 'none' else None
-      )
-      self.send('Заголовок расписания успешно установлен!', ok=True)
-    elif self.state == UserState.ENTER_TIMESHEET_TAIL:
-      self.state = UserState.FREE
-      if not self._checkTimesheet():
-        return
-      self._findTimesheet().setTail(
-        [Piece(text)] if text.lower() != 'none' else None
-      )
-      self.send('Подвал расписания успешно установлен!', ok=True)
-    else:
-      raise Exception(f'No switch case for {self.state}')
-    
-    
-  # CALLBACK QUERY
-  def callbackQuery(self, call: CallbackQuery):
-    if self.state == UserState.FREE:
-      self.tg.answer_callback_query(call.id, text='Непонятно..')
-    elif self.state == UserState.CREATING_EVENT:
-      self.eventTgMaker.callbackQuery(call)
-    elif self.state == UserState.EDITING_EVENT:
-      self.eventTgEditor.callbackQuery(call)
+    self.send('Успешно удалили все трансляции для выбранного канала', emoji='ok')
 
 
   # OTHER
-  def send(
-    self,
-    message,
-    disable_web_page_preview=True,
-    edit=False,
-    warning=False,
-    ok=False,
-    fail=False,
-  ):
+  def send(self, message, emoji: str = None):
     send_message(
       tg=self.tg,
       chat_id=self.chat,
       text=message,
-      disable_web_page_preview=disable_web_page_preview,
-      edit=edit,
-      warning=warning,
-      ok=ok,
-      fail=fail,
+      disable_web_page_preview=True,
+      emoji=emoji,
     )
     
-  def post(self, message, disable_web_page_preview=True):
-    if not self._checkChannel():
-      return
+  def post(self, message):
     try:
       send_message(
         tg=self.tg,
         chat_id=self.channel,
         text=message,
-        disable_web_page_preview=disable_web_page_preview,
+        disable_web_page_preview=True,
       )
-      self.send('Пост успешно сделан!', ok=True)
+      self.send('Пост успешно сделан!', emoji='ok')
     except ApiTelegramException as e:
       self._sendPostFail(e)
 
-    
-  # private
-  def _onEventCreated(self, event: Event):
-    self.state = UserState.FREE
-    timesheet = self._findTimesheet()
-    if timesheet is None:
-      self.send('Расписание куда-то делось.. мероприятие не добавлено :(', fail=True)
-      return
-    self.eventRepository.add(event)
-    timesheet.addEvent(event.id)
-    self.send(f'Мероприятие #{event.id} успешно добавлено в расписание!', ok=True)
-    
-  def _onEventEditorFinish(self):
-    self.state = UserState.FREE
-    
-  def _checkAndMakeFree(self) -> bool:
-    if self.state == UserState.FREE:
-      return True
-    elif self.state == UserState.EDITING_EVENT:
-      self.send('Редактирование события завершено', ok=True)
-    elif self.state == UserState.CREATING_EVENT:
-      self.send('Создание события прервано', warning=True)
-    elif self.state == UserState.ENTER_TIMESHEET_HEAD:
-      self.send('Ввод заголовка расписания прервано', warning=True)
-    elif self.state == UserState.ENTER_TIMESHEET_TAIL:
-      self.send('Ввод подвала расписания прервано', warning=True)
-    self.state = UserState.FREE
-    return False
-  
+  def findTimesheet(self) -> Optional[Timesheet]:
+    return (None
+            if self.timesheetId is None else
+            self.timesheetRepository.find(self.timesheetId))
+
+
+  # checks
   def _checkTimesheet(self) -> bool:
     if self.timesheetId is None:
-      self.send('Вы не подключены ни к какому расписанию', warning=True)
+      self.send('Вы не подключены ни к какому расписанию', emoji='warning')
       return False
-    if self._findTimesheet() is None:
-      self.send('Расписание не найдено :( возможно, его удалили', fail=True)
+    if self.findTimesheet() is None:
+      self.send('Расписание не найдено :( возможно, его удалили', emoji='fail')
       return False
     return True
   
   def _checkChannel(self) -> bool:
     if self.channel is None:
       self.send('Ошибкочка: канал не установлен, используйте /set_channel, '
-                'чтобы установить канал', warning=True)
+                'чтобы установить канал', emoji='warning')
       return False
     return True
 
-
-  def _findTimesheet(self) -> Optional[Timesheet]:
-    return (None
-            if self.timesheetId is None else
-            self.timesheetRepository.find(self.timesheetId))
-  
-  def _setChatMenuButton(self):
-    self.tg.set_chat_menu_button(
-      chat_id=self.chat,
-      menu_button=MenuButtonCommands(type='commands'),
-    )
-    
-  def _checkFindEventByTextId(self, text, command) -> Optional[Event]:
-    try:
-      id = int(text)
-      if not self._checkTimesheet():
-        return None
-      timesheet = self.timesheetRepository.find(self.timesheetId)
-      events = list(timesheet.events(predicat=lambda e: e.id == id))
+  # accessory
+  def _eventIdFoundValidator(self, o: ValidatorObject):
+    events = list(self.findTimesheet().events(predicat=lambda e: e.id == o.data))
+    if len(events) == 0:
+      o.success, o.error, o.emoji = (
+        False,
+        'Мероприятия с таким id не найдено. '
+        + 'Используйте /show_events, чтобы посмотреть события',
+        'warning'
+      )
+    return o
       
-      if len(events) == 0:
-        self.send('Мероприятия с таким id не найдено. '
-                  'Используйте /show_events, чтобы посмотреть события',
-                  warning=True)
-        return None
-      return events[0]
-    except:
-      self.send([Piece('Введите корректный id: '),
-                 Piece(f'{command} ID', type='code'),
-                 Piece(' (см. /show_events)')],
-                warning=True)
-      return None
-    
   def _sendPostFail(self, e = None):
     self.send(f'Произошла ошибка при попытке сделать пост :(\n\n'
               f'Возможные причины таковы:\n'
@@ -464,30 +583,15 @@ class User(Notifier):
               f'2) Бот не является администратором канала' +
               ('' if e is None else
               f'\n\nВот как выглядит сообщение об ошибки: {e}'),
-              warning=True)
+              emoji='warning')
     
   def _makePost(self, predicat = lambda _: True) -> [Piece]:
-    self._checkAndMakeFree()
-    if not self._checkTimesheet():
-      return None
-    timesheet = self._findTimesheet()
+    timesheet = self.findTimesheet()
     events = list(timesheet.events(predicat=predicat))
     if len(events) == 0:
-      self.send('Нельзя запостить пустое расписание', warning=True)
+      self.send('Нельзя запостить пустое расписание', emoji='warning')
       return None
     return self.msgMaker.timesheetPost(events,
                                        head=timesheet.head,
                                        tail=timesheet.tail)
-  
-  def _logpassCheck(self, text, command) -> (str, str):
-    words = list(text.split())
-    if (len(words) != 2
-      or re.match(r'^\w+$', words[0]) is None
-      or re.match(r'^\w+$', words[1]) is None):
-      self.send([Piece('Неее. Нужно ввести название и пароль: '),
-                 Piece(f'{command} NAME PASSWORD', type='code'),
-                 Piece(f'; они могутсостоять только из латинских букв, '
-                       'цифр и символов нижнего подчёркивания')], warning=True)
-      return None, None
-    return words[0], words[1]
 

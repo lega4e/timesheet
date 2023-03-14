@@ -2,7 +2,7 @@ from typing import Union, List
 
 from telebot.types import MessageEntity
 
-from src.entities.message_maker.emoji import emoji
+from src.entities.message_maker.emoji import get_emoji
 
 
 class Piece:
@@ -18,19 +18,16 @@ def piece2string(pieces: [Piece]) -> str:
 
 def piece2message(
   message: Union[List[Piece], str],
-  edit=False,
-  warning=False,
-  ok=False,
-  fail=False,
+  emoji: str = None,
 ) -> (str, [MessageEntity]):
   entities = None
   if isinstance(message, list):
-    e = emoji('', edit=edit, warning=warning, ok=ok, fail=fail)
-    if e != '':
-      message = [Piece(e)] + message
+    e = get_emoji(emoji)
+    if e is not None:
+      message = [Piece(e + ' ')] + message
     message, entities = piece2string(message), piece2entities(message)
-  else:
-    message = emoji(message, edit=edit, warning=warning, ok=ok, fail=fail)
+  elif get_emoji(emoji) is not None:
+    message = get_emoji(emoji) + ' ' + message
   return message, entities
 
 

@@ -1,193 +1,58 @@
 from telebot import TeleBot
-from telebot.types import CallbackQuery
 
-from src.entities.event.accessory import *
-from src.entities.event.event import Event, Place
-from src.entities.event.event_factory import EventFactory
-from src.entities.event.event_fields_parser import *
-from src.entities.message_maker.accessory import send_message
+from src.entities.event.event import Place
+from src.utils.tg.tg_input_field import TgInputField, InputFieldButton
+from src.utils.tg.value_validators import *
 
 
-class EventTgMakerState:
-  ENTER_START_TIME = 'ENTER_START_TIME'
-  ENTER_FINISH_TIME = 'ENTER_FINISH_TIME'
-  ENTER_PLACE = 'ENTER_PLACE'
-  ENTER_URL = 'ENTER_URL'
-  ENTER_DESC = 'ENTER_DESC'
-
-  list = [
-    ENTER_DESC,
-    ENTER_START_TIME,
-    # ENTER_FINISH_TIME,
-    ENTER_PLACE,
-    ENTER_URL,
-  ]
-  
-  @staticmethod
-  def nextState(state):
-    index = EventTgMakerState.list.index(state)
-    if index + 1 < len(EventTgMakerState.list):
-      return EventTgMakerState.list[index + 1]
-    else:
-      return None
-
-
-class EventTgMaker:
-  PASS_URL = 'PASS_URL'
-  
-  def __init__(
-    self,
-    tg: TeleBot,
-    event_factory: EventFactory,
-    chat: int,
-    on_created = None
-  ):
+class TgEventInputFieldsConstructor:
+  def __init__(self, tg: TeleBot, chat):
     self.tg = tg
-    self.eventFactory = event_factory
     self.chat = chat
-    self.onCreated = on_created
-    self.proto = Event()
-    self.state = None
-    self.clear()
     
-  def clear(self):
-    self.state = EventTgMakerState.list[0]
-    self.proto = Event()
-    
-  def onStart(self):
-    self.clear()
-    self._executeBeforeState()
-  
-  def handleText(self, text):
-    {
-      EventTgMakerState.ENTER_START_TIME : self._handleEnterStartTime,
-      EventTgMakerState.ENTER_FINISH_TIME : self._handleEnterFinishTime,
-      EventTgMakerState.ENTER_PLACE : self._handleEnterPlace,
-      EventTgMakerState.ENTER_URL : self._handleEnterUrl,
-      EventTgMakerState.ENTER_DESC : self._handleEnterDesc,
-    }[self.state](text)
-    
-  def callbackQuery(self, call: CallbackQuery):
-    if self.state == EventTgMakerState.ENTER_PLACE:
-      self._callbackQueryEnterPlace(call)
-    elif self.state == EventTgMakerState.ENTER_URL and call.data == EventTgMaker.PASS_URL:
-      self._callbackQueryEnterUrl(call)
-    else:
-      self.tg.answer_callback_query(call.id, 'Недоумеваю..')
-
-  def _nextState(self):
-    self.state = EventTgMakerState.nextState(self.state)
-    if self.state is not None:
-      self._executeBeforeState()
-    else:
-      if self.onCreated is not None:
-        self.onCreated(
-          self.eventFactory.make(
-            start=self.proto.start,
-            finish=self.proto.finish,
-            place=self.proto.place,
-            url=self.proto.url,
-            desc=self.proto.desc,
-            creator=self.chat,
-          )
-        )
-      self.clear()
-
-  def _executeBeforeState(self):
-    {
-      EventTgMakerState.ENTER_START_TIME : self._beforeEnterStartTime,
-      EventTgMakerState.ENTER_FINISH_TIME : self._beforeEnterFinishTime,
-      EventTgMakerState.ENTER_PLACE : self._beforeEnterPlace,
-      EventTgMakerState.ENTER_URL : self._beforeEnterUrl,
-      EventTgMakerState.ENTER_DESC : self._beforeEnterDesc,
-    }[self.state]()
-
-  def _beforeEnterStartTime(self):
-    self._send('Введите дату и время начала мероприятия', edit=True)
-
-  def _beforeEnterFinishTime(self):
-    self._send('Введите продолжительность мероприятия (в минутах)', edit=True)
-
-  def _beforeEnterPlace(self):
-    self._send('Введите или выберите место проведения мероприятия',
-               edit=True,
-               reply_markup=place_markup())
-
-  def _beforeEnterUrl(self):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton('Пропустить', callback_data=EventTgMaker.PASS_URL))
-    self._send('Введите ссылку на пост мероприятия', edit=True, reply_markup=markup)
-
-  def _beforeEnterDesc(self):
-    self._send('Введите название мероприятия', edit=True)
-
-  def _handleEnterStartTime(self, text: str):
-    self.proto.start, error = parse_datetime(text)
-    if self.proto.start is not None:
-      self.proto.start = correct_datetime(self.proto.start,
-                                          isfuture=True,
-                                          delta=dt.timedelta(weeks=4))
-      self._nextState()
-    else:
-      self._send(error, warning=True)
-
-  def _handleEnterFinishTime(self, text: str):
-    try:
-      self.proto.finish = self.proto.start + dt.timedelta(minutes=int(text))
-      self._nextState()
-    except:
-      self._send('Нужно число! число минут! Как "120", например, или "150"',
-                 warning=True)
-
-  def _handleEnterPlace(self, text: str):
-    self.proto.place = Place(name=text)
-    self._nextState()
-
-  def _handleEnterUrl(self, text: str):
-    if text.lower() in ['нет', 'none']:
-      self.proto.url = None
-      self._nextState()
-    elif check_url(text):
-      self.proto.url = text
-      self._nextState()
-    else:
-      self._send('Что-то не похоже на ссылку, давай по новой', warning=True)
-
-  def _handleEnterDesc(self, text: str):
-    self.proto.desc = text
-    self._nextState()
-
-  def _callbackQueryEnterUrl(self, call):
-    self.tg.answer_callback_query(call.id, 'Ввод URL пропущен')
-    self.proto.url = None
-    self._send('🤔 URL не введён, ну и ладно')
-    self._nextState()
-
-  def _callbackQueryEnterPlace(self, call):
-    self.proto.place = Place(name=place_to_str_map().get(call.data))
-    if self.proto.place.name is None:
-      self.tg.answer_callback_query(call.id, 'Что-то не так :(')
-      return
-    self.tg.answer_callback_query(call.id, self.proto.place.name)
-    self._send(f'Место мероприятия установлено: {self.proto.place.name}', ok=True)
-    self._nextState()
-
-  def _send(
-    self,
-    message,
-    edit=False,
-    warning=False,
-    ok=False,
-    fail=False,
-    reply_markup=None
-  ):
-    send_message(
+  def make_name_input_field(self, on_field_entered: Callable) -> TgInputField:
+    return TgInputField(
       tg=self.tg,
-      chat_id=self.chat,
-      text=message,
-      edit=edit,
-      warning=warning,
-      ok=ok,
-      fail=fail,
-      reply_markup=reply_markup,
+      chat=self.chat,
+      greeting='Введите название мероприятия',
+      on_field_entered=on_field_entered,
+      validator=TextValidator(),
+    )
+  
+  def make_datetime_input_field(self, on_field_entered: Callable) -> TgInputField:
+    return TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите дату и время начала мероприятия',
+      on_field_entered=on_field_entered,
+      validator=ChainValidator([DatetimeValidator(), CorrectDatetimeValidator()]),
+    )
+
+  def make_place_input_field(self, on_field_entered: Callable) -> TgInputField:
+    return TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Выберете или введите место или организатора мероприятия',
+      on_field_entered=on_field_entered,
+      validator=TextValidator(),
+      buttons=[
+        [InputFieldButton(
+          title=place,
+          data=place,
+        ) for place in [Place.PLOT, Place.TOCHKA, Place.BOILER_HOUSE]],
+        [InputFieldButton(
+          title=place,
+          data=place,
+        ) for place in [Place.TLL, Place.TODD, Place.DJERRIK]],
+      ]
+    )
+  
+  def make_url_input_field(self, on_field_entered: Callable) -> TgInputField:
+    return TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ссылку на мероприятие',
+      on_field_entered=on_field_entered,
+      validator=UrlValidator(),
+      buttons=[[InputFieldButton(title='Пропустить', data=None)]]
     )

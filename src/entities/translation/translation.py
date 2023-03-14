@@ -94,7 +94,6 @@ class Translation(Notifier):
     from src.domain.di import glob
     s = f'Translation Emit Destroy {self.chatId}, {self.messageId}'
     glob().flogger().info(s)
-    print(s)
     self.notify(Translation.EMIT_DESTROY)
 
   def dispose(self):
@@ -125,7 +124,6 @@ class Translation(Notifier):
       logger.info(f'{logger_title} success')
       return True
     except ApiTelegramException as e:
-      print(str(e))
       if 'message is not modified' in str(e):
         logger.info(f'{logger_title} not modified')
         return True
@@ -137,9 +135,14 @@ class Translation(Notifier):
         logger.info(f'{logger_title} message id invalid')
         self.emitDestroy()
         return False
-      logger.info(f'{logger_title} fail')
-      self.logger.error(traceback.format_exc())
-      return False
+      elif 'chat not found' in str(e):
+        logger.info(f'{logger_title} chat not found')
+        self.emitDestroy()
+        return False
+      else:
+        logger.info(f'{logger_title} fail')
+        self.logger.error(traceback.format_exc())
+        return False
     
   def _getMessage(self, timesheet: Timesheet) -> [Piece]:
     events = list(timesheet.events(predicat=self.eventPredicat))

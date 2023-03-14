@@ -5,12 +5,12 @@ from src.utils.notifier import Notifier
 
 
 class Place:
-  PLOT = 'PLACE_PLOT'
-  TOCHKA = 'PLACE_TOCHKA'
-  BOILER_HOUSE = 'PLACE_BOILER_HOUSE'
-  TLL = 'PLACE_TLL'
-  TODD = 'PLACE_TODD'
-  DJERRIK = 'PLACE_DJERRIK'
+  PLOT = 'Плоt'
+  TOCHKA = '• точка •'
+  BOILER_HOUSE = 'Котельная'
+  TLL = 'ТЛЛ'
+  TODD = 'ТОДД'
+  DJERRIK = 'Джеррик'
   
   def __init__(self, name: str):
     self.name = name

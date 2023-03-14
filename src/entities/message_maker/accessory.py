@@ -15,17 +15,10 @@ def send_message(
   reply_markup = None,
   answer_callback_query_id: int = None,
   answer_callback_query_text: str = None,
-  edit = False,
-  warning = False,
-  ok = False,
-  fail = False,
+  emoji: str = None,
 ) -> Message:
   if entities is None:
-    message, ent = piece2message(text,
-                                      edit=edit,
-                                      warning=warning,
-                                      ok=ok,
-                                      fail=fail)
+    message, ent = piece2message(text, emoji=emoji)
   else:
     message, ent = text, entities
   m = tg.send_message(chat_id=chat_id,
@@ -42,9 +35,6 @@ def send_message(
   logger = glob().flogger()
   logger.message(text,
                  entities=entities,
-                 edit=edit,
-                 warning=warning,
-                 ok=ok,
-                 fail=fail,
+                 emoji=emoji,
                  disable_web_page_preview=disable_web_page_preview)
   return m

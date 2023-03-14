@@ -5,11 +5,13 @@ class Emoji:
   SWORD = '⚔️'
   FAIL = '🥺'
   TIMESHEET_ITEM = '👏'
+  THINK = '🤔'
   
-def emoji(text: str, edit=False, warning=False, ok=False, fail=False):
-  e = (Emoji.EDIT if edit else
-       Emoji.WARNING if warning else
-       Emoji.BANANA if ok else
-       Emoji.FAIL if fail else
-       None)
-  return f'{e} {text}' if e is not None else text
+def get_emoji(emoji: str = None):
+  return {
+    'edit': Emoji.EDIT,
+    'warning': Emoji.WARNING,
+    'ok': Emoji.BANANA,
+    'fail': Emoji.FAIL,
+    'think': Emoji.THINK,
+  }.get(emoji)

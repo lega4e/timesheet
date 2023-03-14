@@ -33,21 +33,14 @@ class FLogger:
     self,
     pieces: Union[str, List[Piece]],
     entities = None,
-    edit = False,
-    warning = False,
-    ok = False,
-    fail = False,
-    **kwargs
+    emoji: str = None,
+    **kwargs,
   ):
     if self.tg is None:
       return
     for chat in self.chats:
       if entities is None:
-        message, ent = piece2message(pieces,
-                                     edit=edit,
-                                     warning=warning,
-                                     ok=ok,
-                                     fail=fail)
+        message, ent = piece2message(pieces, emoji=emoji)
       else:
         message, ent = pieces, entities
       if message is not None:

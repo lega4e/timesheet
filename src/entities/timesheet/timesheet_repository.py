@@ -30,6 +30,12 @@ class TimesheetRepository:
     t = self.timesheets.get(id)
     return None if t is None else t[1]
   
+  def findByName(self, name) -> Optional[Timesheet]:
+    for _, timesheet in self.timesheets.values():
+      if timesheet.name == name:
+        return timesheet
+    return None
+  
   def _deserializeTimesheets(self) -> {int: (int, Timesheet)}:
     timesheets = {}
     for lira_id in self.lira['timesheet']:
