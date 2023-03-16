@@ -68,7 +68,10 @@ class Translation(Notifier, LocatorStorage, Serializable):
     self.messageId: int = serialized['message_id']
     self.timesheetId: int = serialized['timesheet_id']
     self.creator: int = serialized.get('creator')
-    self.destination = self.destinationRepo.find(serialized['destination_chat'])
+    destination_chat = serialized.get('destination_chat')
+    if destination_chat is None:
+      destination_chat = serialized['chat_id']
+    self.destination = self.destinationRepo.find(destination_chat)
 
   def connect(self) -> bool:
     timesheet = self._findAndCheckTimesheet()
