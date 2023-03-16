@@ -40,6 +40,22 @@ def handle_help(user, _, __=False):
     user.handleHelp()
 
 
+@tg.message_handler(commands=['show_timesheet_settings'])
+@log_text
+@user_finder
+def handle_show_timesheet_settings(user, _, __=False):
+  if user is not None:
+    user.handleShowTimesheetSettings()
+
+
+@tg.message_handler(commands=['show_destination_settings'])
+@log_text
+@user_finder
+def handle_show_destination_settings(user, _, __=False):
+  if user is not None:
+    user.handleShowDestinationSettings()
+
+
 # event commands
 @tg.message_handler(commands=['make_event'])
 @log_text

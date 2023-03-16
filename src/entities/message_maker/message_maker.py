@@ -2,11 +2,13 @@ import datetime as dt
 from typing import Optional
 
 from src.domain.locator import LocatorStorage, Locator
+from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.entities.message_maker.emoji import Emoji
 from src.entities.message_maker.help import *
 from src.entities.message_maker.piece import *
+from src.entities.timesheet.timesheet import Timesheet
 from src.utils.utils import reduce_list, insert_between
 
 
@@ -31,6 +33,74 @@ class MessageMaker(LocatorStorage):
     pieces.append(Piece('\n\n'))
     pieces.extend(help_tail)
     return pieces
+  
+  @staticmethod
+  def destinationSets(sets: Optional[DestinationSettings]) -> [Piece]:
+    pieces = list()
+
+    pieces.append(Piece(f'{get_emoji("info")} Заголовок\n'))
+    if sets.head is None:
+      pieces.append(Piece(f'Его нет :(\n\n'))
+    else:
+      pieces.extend([*sets.head, Piece('\n\n')])
+
+    pieces.append(Piece(f'{get_emoji("info")} Подвал\n'))
+    if sets.tail is None:
+      pieces.append(Piece(f'Его нет :(\n\n'))
+    else:
+      pieces.extend([*sets.tail, Piece('\n\n')])
+
+    pieces.append(Piece(f'{get_emoji("info")} Чёрный список событий\n'))
+    if len(sets.blackList) == 0:
+      pieces.append(Piece(f'Пусто!\n\n'))
+    else:
+      pieces.append(Piece(', '.join([str(n) for n in sets.blackList]) + '\n\n', type='code'))
+
+    pieces.append(Piece(f'{get_emoji("info")} Чёрный список слов\n'))
+    if len(sets.blackList) == 0:
+      pieces.append(Piece(f'Пусто!\n\n'))
+    else:
+      pieces.append(Piece(', '.join(sets.wordsBlackList) + '\n\n', type='code'))
+      
+    pieces.append(Piece(f'{get_emoji("info")} Формат строки мероприятия\n'))
+    if sets.lineFormat is None:
+      pieces.append(Piece(f'Обыкновенный'))
+    else:
+      pieces.append(Piece(sets.lineFormat, type='code'))
+
+    return pieces
+
+  @staticmethod
+  def timesheet(timesheet: Optional[Timesheet]) -> [Piece]:
+    pieces = list()
+    pieces.append(Piece(f'{get_emoji("infoglob")} О расписании\n'))
+    if timesheet is None:
+      pieces.append(Piece('Его нет\n\n'))
+      return pieces
+    pieces.append(Piece(f'\n{get_emoji("info")} Название и пароль\n'))
+    pieces.append(Piece(timesheet.name, type='code'))
+    pieces.append(Piece('\n'))
+    pieces.append(Piece(timesheet.password, type='code'))
+    pieces.append(Piece('\n\n'))
+    pieces.extend(MessageMaker.destinationSets(timesheet.destinationSets))
+    return pieces
+
+  @staticmethod
+  def destination(destination: Optional[Destination]) -> [Piece]:
+    pieces = list()
+    pieces.append(Piece(f'{get_emoji("infoglob")} О подключении\n'))
+    if destination is None:
+      pieces.append(Piece('Его нет\n\n'))
+      return pieces
+    pieces.append(Piece(f'\n{get_emoji("info")} Ссыль\n'))
+    pieces.append(Piece(f't.me/{MessageMaker.chat(destination.chat)}'))
+    pieces.append(Piece('\n\n'))
+    pieces.extend(MessageMaker.destinationSets(destination.sets))
+    return pieces
+  
+  @staticmethod
+  def chat(chat) -> str:
+    return str(chat) if isinstance(chat, int) else chat[1:]
 
   @staticmethod
   def timesheetPost(

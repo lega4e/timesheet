@@ -139,7 +139,7 @@ class TgPublicGroupOrChannelValidator(Validator):
     ]
   
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
-    m = re.match(r'^(https?://)?t\.me/(\w+)$', o.message.text)
+    m = re.match(r'^(https?://)?t\.me/(\w+)/?$', o.message.text)
     if m is not None:
       o.data = '@' + m.group(2)
       return o

@@ -6,17 +6,17 @@ from typing import Optional, Any
 from src.domain.locator import LocatorStorage, Locator
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
-from src.entities.event.event import Place
-from src.entities.event.event_factory import EventFactory
+from src.entities.event.event import Place, Event
 from src.entities.event.event_fields_parser import datetime_today
-from src.entities.event.event_repository import EventRepository
+from src.entities.event.event_repository import EventRepo
 from src.entities.event.event_tg_maker import TgEventInputFieldsConstructor
 from src.entities.message_maker.accessory import send_message
-from src.entities.message_maker.emoji import Emoji
+from src.entities.message_maker.emoji import Emoji, get_emoji
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepo
-from src.entities.translation.translation_factory import TranslationFactory
+
+from src.entities.translation.translation import Translation
 from src.entities.translation.translation_repository import TranslationRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
@@ -33,9 +33,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   def __init__(
     self,
     locator: Locator,
-    destination_id: int = None,
     chat: int = None,
     timesheet_id: int = None,
+    destination: Destination = None,
     serialized: {str : Any} = None,
   ):
     Notifier.__init__(self)
@@ -44,20 +44,20 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.tg: TeleBot = self.locator.tg()
     self.msgMaker: MessageMaker = self.locator.messageMaker()
     self.destinationRepo = self.locator.destinationRepo()
-    self.eventRepository: EventRepository = self.locator.eventRepository()
-    self.eventFactory: EventFactory = self.locator.eventFactory()
-    self.timesheetRepository: TimesheetRepo = self.locator.timesheetRepo()
-    self.translationFactory: TranslationFactory = self.locator.translationFactory()
+    self.eventRepo: EventRepo = self.locator.eventRepo()
+    self.timesheetRepo: TimesheetRepo = self.locator.timesheetRepo()
     self.translationRepo: TranslationRepo = self.locator.translationRepo()
     self.logger: FLogger = self.locator.flogger()
     self.tgState = None
     if serialized is not None:
       self.deserialize(serialized)
     else:
-      self.destination: Destination = self.destinationRepo.find(destination_id)
+      assert(chat is not None)
       self.chat = chat
       self.timesheetId = timesheet_id
-    
+      self.destination = destination
+    self.eventPredicat = default_event_predicat
+
     
   # OVERRIDE METHODS
   def _onTerminate(self):
@@ -80,15 +80,16 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     return {
       'chat': self.chat,
       'timesheet_id': self.timesheetId,
-      'destination_id': None if self.destination is None else self.destination.id
+      'destination_chat': self.destination.chat if self.destination is not None else None,
     }
     
   def deserialize(self, serialized: {str: Any}):
-    self.chat = serialized.get('chat')
+    self.chat = serialized['chat']
     self.timesheetId = serialized.get('timesheet_id')
-    self.destination = self.destinationRepo.find(serialized.get('destination_id'))
-    if serialized.get('channel') is not None:
-      self.destination = self.destinationRepo.findByChat(serialized['channel'])
+    self.destination = None
+    destination_chat = serialized.get('destination_chat')
+    if destination_chat is not None:
+      self.destination = self.destinationRepo.find(destination_chat)
 
 
   # HANDLERS FOR TELEGRAM
@@ -101,6 +102,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     self.send(message=self.msgMaker.help())
 
+  def handleShowTimesheetSettings(self):
+    self.send(self.msgMaker.timesheet(self.findTimesheet()))
+
+  def handleShowDestinationSettings(self):
+    self.send(self.msgMaker.destination(self.destination))
+    
 
   # event commands
   def handleMakeEvent(self):
@@ -109,14 +116,21 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return
     
     def on_form_entered(data: []):
-      event = self.eventFactory.make(desc=data[0],
-                                     start=data[1],
-                                     finish=None,
-                                     place=Place(data[2]),
-                                     url=data[3])
-      self.eventRepository.add(event)
-      self.findTimesheet().addEvent(event.id)
-      self.send(f'Мероприятие #{event.id} успешно добавлено в расписание!', emoji='ok')
+      event = self.eventRepo.putWithId(lambda id: Event(
+        id=id,
+        desc=data[0],
+        start=data[1],
+        finish=None,
+        place=Place(data[2]),
+        url=data[3],
+      ))
+      timesheet = self.findTimesheet()
+      if timesheet is None:
+        self.send(f'Пока вы создавали мероприятие, расписание куда-то делось :(',
+                  emoji='fail')
+      else:
+        timesheet.addEvent(event.id)
+        self.send(f'Мероприятие #{event.id} успешно добавлено в расписание!', emoji='ok')
       self.resetTgState()
 
     constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
@@ -136,7 +150,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       state = None
       
       def on_event_field_entered(value, field_name: str):
-        print(value, field_name)
         if field_name == 'name':
           event.desc = value
         elif field_name == 'start':
@@ -226,7 +239,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     
     def on_field_entered(data):
       self.findTimesheet().removeEvent(id=data.id)
-      self.eventRepository.remove(id=data.id)
+      self.eventRepo.remove(data.id)
       self.send('Мероприятие успешно удалено', emoji='ok')
       self.resetTgState()
 
@@ -243,7 +256,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   # timesheet commands
   def handleMakeTimesheet(self):
     def name_validator(o: ValidatorObject):
-      timesheet = self.timesheetRepository.findByName(o.data)
+      timesheet = self.timesheetRepo.findByName(o.data)
       if timesheet is not None:
         o.success = False
         o.error = [Piece('Расписание с именем '),
@@ -255,7 +268,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     def on_form_entered(data: []):
       name = data[0]
       pswd = data[1]
-      self.timesheetId = self.timesheetRepository.create(name=name,pswd=pswd).id
+      timesheet = self.timesheetRepo.putWithId(lambda id: Timesheet(
+        locator=self.locator,
+        id=id,
+        name=name,
+        password=pswd,
+      ))
+      self.timesheetId = timesheet.id
       self.send([Piece('Расписание '),
                  Piece(f'{name}', type='code'),
                  Piece(' с паролем '),
@@ -296,7 +315,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     tm = {}
     
     def name_validator(o: ValidatorObject):
-      timesheet = self.timesheetRepository.findByName(o.data)
+      timesheet = self.timesheetRepo.findByName(o.data)
       if timesheet is None:
         o.success = False
         o.error = [Piece('Расписание с названием '),
@@ -313,7 +332,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return o
     
     def pswd_validator(o: ValidatorObject):
-      timesheet = self.timesheetRepository.findByName(tm['name'])
+      timesheet = self.timesheetRepo.findByName(tm['name'])
       if timesheet.password != o.data:
         o.success = False
         o.error = 'Пароль не подходит'
@@ -321,7 +340,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return o
     
     def on_form_entered(data: []):
-      timesheet = self.timesheetRepository.findByName(data[0])
+      timesheet = self.timesheetRepo.findByName(data[0])
       self.timesheetId = timesheet.id
       self.send([Piece('Успешно выбрано расписание '),
                  Piece(f'{data[0]}', type='code')],
@@ -411,25 +430,28 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   def handleShowTimesheetList(self):
     self.terminateSubstate()
-    names = [tm.name for _, tm in self.timesheetRepository.timesheets.values()]
-    self.send(
-      [Piece('Существующие расписания:\n')] +
-      reduce_list(
-        lambda a, b: a + b,
-        insert_between(
-          [[Piece(f'{Emoji.TIMESHEET_ITEM} '), Piece(f'{name}', type='code')]
-           for name in names],
-          [Piece('\n')],
-        ),
-        [],
+    names = [tm.name for tm in self.timesheetRepo.findAll(lambda _: True)]
+    if len(names) == 0:
+      self.send('Не найдено ни одного расписания :(', emoji='fail')
+    else:
+      self.send(
+        [Piece('Существующие расписания:\n')] +
+        reduce_list(
+          lambda a, b: a + b,
+          insert_between(
+            [[Piece(f'{Emoji.TIMESHEET_ITEM} '), Piece(f'{name}', type='code')]
+             for name in names],
+            [Piece('\n')],
+          ),
+          [],
+        )
       )
-    )
 
 
   # destination commands
   def handleSetDestination(self):
     def on_field_entered(data: str):
-      self.destination = self.destinationRepo.findByChat(data)
+      self.destination = self.destinationRepo.find(data)
       self.send(f'Успешное подключение к {data}', emoji='ok')
       self.resetTgState()
       self.notify()
@@ -450,8 +472,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return
   
     def on_entered(data):
-      if not self._checkTimesheet():
-        return
       self.destination.sets.head = data
       self.destination.sets.notify()
       self.send('Заголовок успешно установлен!', emoji='ok')
@@ -472,8 +492,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return
   
     def on_entered(data):
-      if not self._checkTimesheet():
-        return
       self.destination.sets.tail = data
       self.destination.sets.notify()
       self.send('Подвал успешно установлен!', emoji='ok')
@@ -492,7 +510,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     if not self._checkTimesheet() or not self._checkDestination():
       return
-    message = self._makePost(lambda e: e.start >= datetime_today())
+    message = self._makePost(self.eventPredicat)
     if message is not None:
       self.post(message)
     
@@ -500,7 +518,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    message = self._makePost(lambda e: e.start >= datetime_today())
+    message = self._makePost(self.eventPredicat)
     if message is not None:
       self.send(message)
 
@@ -510,11 +528,15 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     if not self._checkTimesheet() or not self._checkDestination():
       return
-    tr = self.translationFactory.make(
-      destination_id=self.destination.id,
+    
+    tr = self.translationRepo.putWithId(lambda id: Translation(
+      locator=self.locator,
+      id=id,
+      destination=self.destination,
       timesheet_id=self.timesheetId,
-    )
-    if self.translationRepo.add(tr):
+      creator=self.chat,
+    ))
+    if tr is not None:
       self.send('Успешно добавили трансляцию', emoji='ok')
     else:
       self._sendPostFail()
@@ -522,12 +544,15 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     
   def handleTranslateToMessage(self):
     def on_field_entered(data):
-      tr = self.translationFactory.make(
-        destination_id=self.destinationRepo.findByChat(data[0]),
+      tr = self.translationRepo.putWithId(lambda id: Translation(
+        locator=self.locator,
+        id=id,
+        destination=self.destinationRepo.find(data[0]),
         timesheet_id=self.timesheetId,
-        message_id=data[1]
-      )
-      if self.translationRepo.add(tr) and tr.updatePost():
+        message_id=data[1],
+        creator=self.chat,
+      ))
+      if tr is not None and tr.updatePost():
         self.send('Успешно добавили трансляцию в сообщение '
                   f'https://t.me/{data[0][1:]}/{data[1]}',
                   emoji='ok')
@@ -549,10 +574,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     
   def handleClearTranslations(self):
     self.terminateSubstate()
-    if not self._checkTimesheet() or not self._checkDestination():
+    if not self._checkDestination():
       return
-    self.translationRepo.removeTranslations(
-      lambda tr: tr.chatId == self.destination.chat or tr.chatId is None
+    self.translationRepo.removeAll(
+      lambda tr: tr.destination.chat == self.destination.chat
     )
     self.send('Успешно удалили все трансляции для выбранного канала', emoji='ok')
 
@@ -582,7 +607,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   def findTimesheet(self) -> Optional[Timesheet]:
     return (None
             if self.timesheetId is None else
-            self.timesheetRepository.find(self.timesheetId))
+            self.timesheetRepo.find(self.timesheetId))
 
 
   # checks
@@ -674,7 +699,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       events,
       DestinationSettings.merge(
         timesheet.destinationSets,
-        DestinationSettings() if self.destination is None else self.destination.sets
+        DestinationSettings.default()
+        if self.destination is None else
+        self.destination.sets
       ),
     )
+  
 
+def default_event_predicat(event: Event) -> bool:
+  return event.start >= datetime_today()

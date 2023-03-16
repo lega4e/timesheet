@@ -6,9 +6,11 @@ from src.utils.serialize import Serializable
 
 
 class Destination(Notifier, Serializable):
+  """
+  Все поля не nullable
+  """
   def __init__(
     self,
-    id: int = None,
     chat = None,
     sets: DestinationSettings = None,
     serialized: {str, Any} = None,
@@ -17,20 +19,18 @@ class Destination(Notifier, Serializable):
     if serialized is not None:
       self.deserialize(serialized)
     else:
-      self.id = id
+      assert(chat is not None)
       self.chat = chat
       self.sets = sets or DestinationSettings()
-    self.sets.addListener(self.notify)
+    self.sets.addListener(lambda _: self.notify())
 
   def serialize(self) -> {str: Any}:
     return {
-      'id': self.id,
       'chat': self.chat,
       'sets': self.sets.serialize()
     }
 
   def deserialize(self, serialized: {str: Any}):
-    self.id = serialized.get('id')
-    self.chat = serialized.get('chat')
-    self.sets = DestinationSettings(serialized=serialized.get('sets'))
+    self.chat = serialized['chat']
+    self.sets = DestinationSettings(serialized=serialized['sets'])
 

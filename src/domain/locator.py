@@ -5,7 +5,6 @@ class Locator:
   def __init__(self):
     self._config = None
     self._destinationRepo = None
-    self._eventFactory = None
     self._eventRepository = None
     self._flogger = None
     self._lira = None
@@ -13,11 +12,8 @@ class Locator:
     self._loggerStream = None
     self._messageMaker = None
     self._tg = None
-    self._timesheetFactory = None
     self._timesheetRepository = None
-    self._translationFactory = None
     self._translationRepo = None
-    self._userFactory = None
     self._userRepository = None
     
   def config(self):
@@ -32,16 +28,10 @@ class Locator:
       self._destinationRepo = DestinationRepo(self)
     return self._destinationRepo
   
-  def eventFactory(self):
-    if self._eventFactory is None:
-      from src.entities.event.event_factory import EventFactory
-      self._eventFactory = EventFactory(self)
-    return self._eventFactory
-  
-  def eventRepository(self):
+  def eventRepo(self):
     if self._eventRepository is None:
-      from src.entities.event.event_repository import EventRepository
-      self._eventRepository = EventRepository(self)
+      from src.entities.event.event_repository import EventRepo
+      self._eventRepository = EventRepo(self)
     return self._eventRepository
   
   def flogger(self):
@@ -88,35 +78,17 @@ class Locator:
       self._tg = TeleBot(token=self.config().token())
     return self._tg
   
-  def timesheetFactory(self):
-    if self._timesheetFactory is None:
-      from src.entities.timesheet.timesheet_factory import TimesheetFactory
-      self._timesheetFactory = TimesheetFactory(self)
-    return self._timesheetFactory
-  
   def timesheetRepo(self):
     if self._timesheetRepository is None:
       from src.entities.timesheet.timesheet_repository import TimesheetRepo
       self._timesheetRepository = TimesheetRepo(self)
     return self._timesheetRepository
   
-  def translationFactory(self):
-    if self._translationFactory is None:
-      from src.entities.translation.translation_factory import TranslationFactory
-      self._translationFactory = TranslationFactory(self)
-    return self._translationFactory
-  
   def translationRepo(self):
     if self._translationRepo is None:
       from src.entities.translation.translation_repository import TranslationRepo
       self._translationRepo = TranslationRepo(self)
     return self._translationRepo
-  
-  def userFactory(self):
-    if self._userFactory is None:
-      from src.entities.user.user_factory import UserFactory
-      self._userFactory = UserFactory(self)
-    return self._userFactory
   
   def userRepo(self):
     if self._userRepository is None:

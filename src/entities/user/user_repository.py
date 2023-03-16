@@ -1,44 +1,27 @@
-from typing import Optional
+from typing import Callable, Any
 
-from src.domain.locator import Locator, LocatorStorage
+from src.domain.locator import Locator
 from src.entities.user.user import User
-from src.entities.user.user_factory import UserFactory
-from src.utils.lira import Lira
+from src.utils.lira_repo import LiraRepo
 
+T = User
+Key = int
 
-class UserRepo(LocatorStorage):
+class UserRepo(LiraRepo):
   def __init__(self, locator: Locator):
-    super().__init__(locator)
-    self.userFactory: UserFactory = self.locator.userFactory()
-    self.lira: Lira = self.locator.lira()
-    self.users = self._deserializeUsers()
+    super().__init__(locator, lira_cat='user')
+    
+  def valueToSerialized(self, value: T) -> {str: Any}:
+    return value.serialize()
 
-  def find(self, chat: int) -> Optional[User]:
-    if chat < 0:
-      return None
-    user = self.users.get(chat)
-    if user is not None:
-      return user[1]
-    lira_id, user = self._makeUser(chat)
-    self.users[chat] = (lira_id, user)
-    return user
-  
-  def _makeUser(self, chat: int) -> (int, User):
-    user = self.userFactory.make(chat=chat)
-    user.addListener(self._onUserChanged)
-    lira_id = self.lira.put(user.serialize(), cat='user')
-    self.lira.flush()
-    return lira_id, user
+  def valueFromSerialized(self, serialized: {str: Any}) -> T:
+    return User(self.locator, serialized=serialized)
 
-  def _deserializeUsers(self) -> {int : (int, User)}:
-    users = {}
-    for lira_id in self.lira['user']:
-      user = self.userFactory.make(serialized=self.lira.get(id=lira_id))
-      user.addListener(self._onUserChanged)
-      users[user.chat] = (lira_id, user)
-    return users
-  
-  def _onUserChanged(self, user: User):
-    lira_id, user = self.users.get(user.chat)
-    self.lira.put(user.serialize(), id=lira_id, cat='user')
-    self.lira.flush()
+  def addValueListener(self, value: T, listener: Callable):
+    value.addListener(listener)
+
+  def keyByValue(self, value: T) -> Key:
+    return value.chat
+
+  def find(self, key: Key, **kwargs) -> T:
+    return super().find(key, lambda chat: User(self.locator, chat=chat))

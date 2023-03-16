@@ -3,15 +3,13 @@ from typing import Iterable, Any, Callable
 from src.domain.locator import LocatorStorage, Locator
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
-from src.entities.event.event_repository import EventRepository
+from src.entities.event.event_repository import EventRepo
 from src.entities.message_maker.piece import Piece
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
 
 
 class Timesheet(Notifier, LocatorStorage, Serializable):
-  EVENT_CHANGED = 'EVENT_CHANGED'
-  
   def __init__(
     self,
     locator: Locator,
@@ -23,7 +21,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
   ):
     Notifier.__init__(self)
     LocatorStorage.__init__(self, locator)
-    self.eventRepository: EventRepository = self.locator.eventRepository()
+    self.eventRepo: EventRepo = self.locator.eventRepo()
     if serialized is not None:
       self.deserialize(serialized)
     else:
@@ -31,7 +29,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       self.name = name
       self.password = password
       self.destinationSets = destination_sets or DestinationSettings()
-      self.destinationSets.addListener(self.notify)
+      self.destinationSets.addListener(lambda s: self.notify())
       self._events: {int: Callable} = dict()
     
   def serialize(self) -> {str : Any}:
@@ -48,14 +46,14 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
     self.name: str = serialized['name']
     self.password: str = serialized.get('password')
     self.destinationSets = DestinationSettings(serialized=serialized.get('destination_sets'))
-    self.destinationSets.addListener(self.notify)
     if serialized.get('head') is not None:
       self.destinationSets.head = serialized.get('head')
     if serialized.get('tail') is not None:
       self.destinationSets.tail = serialized.get('tail')
-    events = [self.eventRepository.find(id) for id in serialized['events']]
+    self.destinationSets.addListener(lambda s: self.notify())
+    events = [self.eventRepo.find(id) for id in serialized['events']]
     self._events = {
-      event.id: event.addListener(self._onEventChanged)
+      event.id: event.addListener(lambda e: self.notify())
       for event in events
       if event is not None
     }
@@ -69,22 +67,20 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
     self.destinationSets.notify()
 
   def addEvent(self, id: int):
-    self._events[id] = (self.eventRepository
+    self._events[id] = (self.eventRepo
                             .find(id)
-                            .addListener(self._onEventChanged))
+                            .addListener(lambda e: self.notify()))
     self.notify()
   
   def removeEvent(self, id: int) -> bool:
     if self._events.get(id) is None:
       return False
     self._events.pop(id)
+    self.eventRepo.remove(id)
     self.notify()
     return True
 
-  def events(self, predicat = lambda _: True) -> Iterable[Event]:
-    events = [self.eventRepository.find(id) for id, _ in self._events.items()]
+  def events(self, predicat = lambda _: True) -> [Event]:
+    events = [self.eventRepo.find(id) for id, _ in self._events.items()]
     events = [e for e in events if e is not None and predicat(e)]
     return events
-  
-  def _onEventChanged(self, _):
-    self.notify(event=Timesheet.EVENT_CHANGED)

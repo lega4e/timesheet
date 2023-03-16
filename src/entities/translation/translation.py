@@ -1,11 +1,11 @@
 import traceback
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
-from src.domain.locator import LocatorStorage, Locator, glob
+from src.domain.locator import LocatorStorage, Locator
 from src.entities.destination.destination import Destination
 from src.entities.destination.destination_repo import DestinationRepo
 from src.entities.destination.settings import DestinationSettings
@@ -28,10 +28,11 @@ class Translation(Notifier, LocatorStorage, Serializable):
     self,
     locator: Locator,
     id: int = None,
-    event_predicat: Callable = None,
-    destination_id: int = None,
+    destination: Destination = None,
     message_id: int = None,
     timesheet_id: int = None,
+    creator: int = None, # user chat id
+    event_predicat: Callable = None,
     serialized: {str: Any} = None,
   ):
     Notifier.__init__(self)
@@ -42,87 +43,83 @@ class Translation(Notifier, LocatorStorage, Serializable):
     self.logger: FLogger = self.locator.flogger()
     self.eventPredicat = event_predicat or Translation._defaultPredicat
     self.destinationRepo: DestinationRepo = self.locator.destinationRepo()
-    self._dispose = None
     if serialized is not None:
       self.deserialize(serialized)
     else:
+      assert(None not in [id, destination, timesheet_id, creator])
       self.id = id
-      self.destination = self.destinationRepo.find(destination_id)
+      self.destination = destination
       self.messageId = message_id
       self.timesheetId = timesheet_id
+      self.creator = creator
+    self._dispose = None
 
   def serialize(self) -> {str: Any}:
     return {
       'id': self.id,
-      'destination_id': None if self.destination is None else self.destination.id,
+      'destination_chat': self.destination.chat,
       'message_id': self.messageId,
       'timesheet_id': self.timesheetId,
+      'creator': self.creator,
     }
   
   def deserialize(self, serialized: {str: Any}):
     self.id: int = serialized['id']
-    self.destination: Destination = self.destinationRepo.find(serialized.get('destination_id'))
     self.messageId: int = serialized['message_id']
     self.timesheetId: int = serialized['timesheet_id']
-    chat_id = serialized.get('chat_id')
-    if chat_id is not None:
-      self.destination = Destination(chat=chat_id)
+    self.creator: int = serialized.get('creator')
+    self.destination = self.destinationRepo.find(serialized['destination_chat'])
 
   def connect(self) -> bool:
-    timesheet = self.timesheetRepo.find(self.timesheetId)
+    timesheet = self._findAndCheckTimesheet()
     if timesheet is None:
-      self.emitDestroy()
       return False
-    self._dispose = timesheet.addListener(
-      self._translate, event=[None, Timesheet.EVENT_CHANGED]
-    )
+    self._dispose = (timesheet.addListener(lambda _: self._translate()),
+                     self.destination.addListener(lambda _: self._translate()))
     if self.messageId is None:
       message = self._getMessage(timesheet)
       if message is None:
-        self.emitDestroy()
         return False
       try:
         self.messageId = send_message(
           tg=self.tg,
-          chat_id=self._destinationChat(),
+          chat_id=self.destination.chat,
           text=message,
           disable_web_page_preview=True,
         ).message_id
-      except:
-        self.emitDestroy()
+      except Exception as e:
+        self.emitDestroy(f'exception on send message: {e}')
         return False
     return True
   
   def updatePost(self) -> bool:
-    timesheet = self.timesheetRepo.find(self.timesheetId)
+    timesheet = self._findAndCheckTimesheet()
     if timesheet is None:
       return False
-    return self._translate(timesheet)
+    return self._translate()
     
-  def emitDestroy(self):
-    s = f'Translation Emit Destroy {self._destinationChat()}, {self.messageId}'
-    glob().flogger().info(s)
+  def emitDestroy(self, reason: str):
+    s = f'Translation Emit Destroy {self.destination.chat}/{self.messageId} ({reason})'
+    self.locator.flogger().info(s)
+    if self._dispose is not None:
+      self._dispose[0]()
+      self._dispose[1]()
+      self._dispose = None
     self.notify(Translation.EMIT_DESTROY)
 
-  def dispose(self):
-    if self._dispose is not None:
-      self._dispose()
-    self._dispose = None
-    
-  def _translate(self, timesheet: Timesheet) -> bool:
-    logger = glob().flogger()
-    pieces = self._getMessage(timesheet)
+  def _translate(self) -> bool:
+    logger = self.locator.flogger()
     logger_title = self._getLoggerTitle()
+    timesheet = self._findAndCheckTimesheet()
+    if timesheet is None:
+      return False
+    pieces = self._getMessage(timesheet)
     if pieces is None:
-      logger.info(f'{logger_title} no pieces')
       return False
     message, entities = piece2string(pieces), piece2entities(pieces)
-    if message is None:
-      logger.info(f'{logger_title} message is none')
-      return False
     try:
       self.tg.edit_message_text(
-        chat_id=self._destinationChat(),
+        chat_id=self.destination.chat,
         message_id=self.messageId,
         text=message,
         entities=entities,
@@ -136,19 +133,19 @@ class Translation(Notifier, LocatorStorage, Serializable):
         return True
       elif 'message to edit not found' in str(e):
         logger.info(f'{logger_title} message not found')
-        self.emitDestroy()
+        self.emitDestroy('message to edit not found')
         return False
       elif 'MESSAGE_ID_INVALID' in str(e):
         logger.info(f'{logger_title} message id invalid')
-        self.emitDestroy()
+        self.emitDestroy('MESSAGE_ID_INVALID')
         return False
       elif 'chat not found' in str(e):
         logger.info(f'{logger_title} chat not found')
-        self.emitDestroy()
+        self.emitDestroy('chat not found')
         return False
       elif 'bot is not a member' in str(e):
         logger.info(f'{logger_title} bot is not a member')
-        self.emitDestroy()
+        self.emitDestroy('bot is not a member')
         return False
       else:
         logger.info(f'{logger_title} fail')
@@ -157,28 +154,28 @@ class Translation(Notifier, LocatorStorage, Serializable):
     
   def _getMessage(self, timesheet: Timesheet) -> [Piece]:
     events = list(timesheet.events(predicat=self.eventPredicat))
-    if len(events) == 0 or self.destination is None:
-      title = self._getLoggerTitle()
-      glob().flogger().info(f'{title} len(events) == 0 -> EmitDestroy')
-      self.emitDestroy()
+    if len(events) == 0:
+      self.emitDestroy('message is None')
       return None
     return self.msgMaker.timesheetPost(
       events,
       DestinationSettings.merge(timesheet.destinationSets, self.destination.sets),
     )
-    
   
   def _getLoggerTitle(self):
-    if self.destination is None:
-      chat_id_str = 'None'
-    else:
-      chat_id_str = (str(self._destinationChat())
-                     if isinstance(self._destinationChat(), int) else
-                     self._destinationChat()[1:])
+    chat_id_str = (str(self.destination.chat)
+                   if isinstance(self.destination.chat, int) else
+                   self.destination.chat[1:])
     return f'Translate to t.me/{chat_id_str}/{self.messageId}'
   
-  def _destinationChat(self):
-    return None if self.destination is None else self.destination.chat
+  def findTimesheet(self) -> Optional[Timesheet]:
+    return self.timesheetRepo.find(self.timesheetId)
+  
+  def _findAndCheckTimesheet(self):
+    timesheet = self.findTimesheet()
+    if timesheet is None:
+      self.emitDestroy('timesheet is None')
+    return timesheet
   
   @staticmethod
   def _defaultPredicat(event: Event) -> bool:

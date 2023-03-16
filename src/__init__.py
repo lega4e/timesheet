@@ -34,8 +34,8 @@ def main():
   set_locale()
   handlers.set_my_commands()
   log.info('Bot Started!')
-  while True:
-    try:
-      tg.polling(none_stop=True, interval=0)
-    except Exception:
-      log.error(traceback.format_exc())
+  # while True:
+  #   try:
+  tg.polling(none_stop=True, interval=0)
+    # except Exception:
+    #   log.error(traceback.format_exc())
