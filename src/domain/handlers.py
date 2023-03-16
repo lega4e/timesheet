@@ -11,7 +11,7 @@ users = locator.userRepo()
 
 def user_finder(func):
   def wrapper(m, res=False):
-    func(users.find(m.chat.id), m, res)
+    func(users.find(m.chat.id) if m.chat.id > 0 else None, m, res)
   return wrapper
 
 
