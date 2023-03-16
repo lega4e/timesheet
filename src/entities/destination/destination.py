@@ -33,4 +33,8 @@ class Destination(Notifier, Serializable):
   def deserialize(self, serialized: {str: Any}):
     self.chat = serialized['chat']
     self.sets = DestinationSettings(serialized=serialized['sets'])
+    
+  def getUrl(self, message_id: int = None):
+    chat = str(self.chat) if isinstance(self.chat, int) else self.chat[1:]
+    return f't.me/{chat}' + ('' if message_id is None else f'/{message_id}')
 

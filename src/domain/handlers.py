@@ -40,20 +40,20 @@ def handle_help(user, _, __=False):
     user.handleHelp()
 
 
-@tg.message_handler(commands=['show_timesheet_settings'])
+@tg.message_handler(commands=['show_timesheet_info'])
 @log_text
 @user_finder
 def handle_show_timesheet_settings(user, _, __=False):
   if user is not None:
-    user.handleShowTimesheetSettings()
+    user.handleShowTimesheetInfo()
 
 
-@tg.message_handler(commands=['show_destination_settings'])
+@tg.message_handler(commands=['show_destination_info'])
 @log_text
 @user_finder
 def handle_show_destination_settings(user, _, __=False):
   if user is not None:
-    user.handleShowDestinationSettings()
+    user.handleShowDestinationInfo()
 
 
 # event commands
@@ -131,28 +131,20 @@ def handle_set_destination_tail(user, _, __=False):
     user.handleSetDestinationTail()
 
 
-# @tg.message_handler(commands=['set_destination_black_list'])
-# @log_text
-# @user_finder
-# def handle_set_destination_black_list(user, _, __=False):
-#   if user is not None:
-#     user.handleSetDestinationBlackList()
-#
-#
-# @tg.message_handler(commands=['set_destination_word_black_list'])
-# @log_text
-# @user_finder
-# def handle_set_destination_word_black_list(user, _, __=False):
-#   if user is not None:
-#     user.handleSetDestinationWordBlackList()
-
-
-@tg.message_handler(commands=['post'])
+@tg.message_handler(commands=['set_destination_black_list'])
 @log_text
 @user_finder
-def handle_post(user, _, __=False):
+def handle_set_destination_black_list(user, _, __=False):
   if user is not None:
-    user.handlePost()
+    user.handleSetDestinationBlackList()
+
+
+@tg.message_handler(commands=['set_destination_words_black_list'])
+@log_text
+@user_finder
+def handle_set_destination_word_black_list(user, _, __=False):
+  if user is not None:
+    user.handleSetDestinationWordsBlackList()
 
 
 @tg.message_handler(commands=['post_preview'])
@@ -179,6 +171,22 @@ def handle_translate_to_message(user, _, __=False):
     user.handleTranslateToMessage()
 
 
+@tg.message_handler(commands=['show_translations'])
+@log_text
+@user_finder
+def handle_show_translations(user, _, __=False):
+  if user is not None:
+    user.handleShowTranslations()
+
+
+@tg.message_handler(commands=['remove_translation'])
+@log_text
+@user_finder
+def handle_remove_translation(user, _, __=False):
+  if user is not None:
+    user.handleRemoveTranslation()
+    
+
 @tg.message_handler(commands=['clear_translations'])
 @log_text
 @user_finder
@@ -202,14 +210,6 @@ def handle_set_timesheet_head(user, _, __=False):
 def handle_set_timesheet_tail(user, _, __=False):
   if user is not None:
     user.handleSetTimesheetTail()
-
-
-@tg.message_handler(commands=['show_timesheet_info'])
-@log_text
-@user_finder
-def handle_show_timesheet_info(user, _, __=False):
-  if user is not None:
-    user.handleShowTimesheetInfo()
 
 
 @tg.message_handler(commands=['show_timesheet_list'])

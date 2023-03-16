@@ -11,9 +11,10 @@ from src.utils.tg.value_validators import Validator, ValidatorObject
 
 
 class InputFieldButton:
-  def __init__(self, title: str, data):
+  def __init__(self, title: str, data, answer: str = None):
     self.title = title
     self.data = data
+    self.answer = answer
     self.qb = str(random.random())
 
 
@@ -66,7 +67,7 @@ class TgInputField(TgState):
       for button in row:
         if q.data == button.qb:
           self.tg.answer_callback_query(callback_query_id=q.id,
-                                        text=f'Выбрано {button.title}')
+                                        text=button.answer or f'Выбрано {button.title}')
           self.onFieldEntered(button.data)
           return True
     return False

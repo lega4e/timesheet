@@ -21,7 +21,7 @@ from src.entities.translation.translation_repository import TranslationRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
-from src.utils.tg.tg_input_field import TgInputField
+from src.utils.tg.tg_input_field import TgInputField, InputFieldButton
 from src.utils.tg.tg_input_form import TgInputForm
 from src.utils.tg.tg_state import TgState
 from src.utils.tg.tg_state_branch import TgStateBranch, BranchButton
@@ -102,10 +102,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     self.send(message=self.msgMaker.help())
 
-  def handleShowTimesheetSettings(self):
+  def handleShowTimesheetInfo(self):
     self.send(self.msgMaker.timesheet(self.findTimesheet()))
 
-  def handleShowDestinationSettings(self):
+  def handleShowDestinationInfo(self):
     self.send(self.msgMaker.destination(self.destination))
     
 
@@ -305,7 +305,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
           tg=self.tg,
           chat=self.chat,
           greeting='Введите пароль',
-          validator=IdValidator(error=IdValidator.PSWD_ERROR_MESSAGE),
+          validator=IdValidator(error=IdValidator.PSWD_ERROR_MESSAGE,
+                                is_password=True),
           on_field_entered=lambda _: None,
         )
       ]
@@ -420,14 +421,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       terminate_message='Ввод подвала прерван',
     ))
 
-  def handleShowTimesheetInfo(self):
-    self.terminateSubstate()
-    if not self._checkTimesheet():
-      return
-    self.send([Piece(f'Название: {self.findTimesheet().name}\n'
-                     f'Пароль:   {self.findTimesheet().password}',
-                     type='code')])
-
   def handleShowTimesheetList(self):
     self.terminateSubstate()
     names = [tm.name for tm in self.timesheetRepo.findAll(lambda _: True)]
@@ -505,15 +498,55 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       validator=PieceValidator(),
       terminate_message='Ввод подвала прерван',
     ))
-  
-  def handlePost(self):
+
+  def handleSetDestinationBlackList(self):
     self.terminateSubstate()
-    if not self._checkTimesheet() or not self._checkDestination():
+    if not self._checkDestination():
       return
-    message = self._makePost(self.eventPredicat)
-    if message is not None:
-      self.post(message)
-    
+  
+    def on_entered(data):
+      self.destination.sets.blackList = set(data)
+      self.destination.sets.notify()
+      self.send('События с этими идентификаторами больше не будут показываться! '
+                'Посмотреть все настройки: /show_destination_settings',
+                emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите список идентификаторов событий, '
+               'которые вы хотите внести в чёрный список',
+      on_field_entered=on_entered,
+      validator=ChainValidator([TextValidator(), IntegerListValidator()]),
+      terminate_message='Ввод прерван',
+      buttons=[[InputFieldButton('Оставить пустым', set(), 'Пусть будет пусто')]],
+    ))
+
+  def handleSetDestinationWordsBlackList(self):
+    self.terminateSubstate()
+    if not self._checkDestination():
+      return
+  
+    def on_entered(data):
+      self.destination.sets.wordsBlackList = data
+      self.destination.sets.notify()
+      self.send('События, содержащие эти слова, не будут показываться! '
+                'Посмотреть все настройки: /show_destination_settings',
+                emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите список идентификаторов событий, '
+               'которые вы хотите внести в чёрный список',
+      on_field_entered=on_entered,
+      validator=ChainValidator([TextValidator(), WordListValidator()]),
+      terminate_message='Ввод прерван',
+      buttons=[[InputFieldButton('Оставить пустым', [], 'Пусть будет пусто')]],
+    ))
+  
   def handlePostPreview(self):
     self.terminateSubstate()
     if not self._checkTimesheet():
@@ -537,7 +570,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       creator=self.chat,
     ))
     if tr is not None:
-      self.send('Успешно добавили трансляцию', emoji='ok')
+      self.send([Piece('Успешно добавили '),
+                 Piece('трансляцию', url=self.destination.getUrl(tr.messageId))],
+                 emoji='ok')
     else:
       self._sendPostFail()
     return
@@ -553,8 +588,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         creator=self.chat,
       ))
       if tr is not None and tr.updatePost():
-        self.send('Успешно добавили трансляцию в сообщение '
-                  f'https://t.me/{data[0][1:]}/{data[1]}',
+        self.send([Piece('Успешно добавили '),
+                   Piece('трансляцию в сообщение',
+                         url=tr.destination.getUrl(tr.messageId))],
                   emoji='ok')
       else:
         self.send('Что-то пошло не так..', emoji='fail')
@@ -569,6 +605,44 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       greeting='Введите ссылку на пост',
       validator=TgMessageUrlValidator(),
       terminate_message='Добавление трансляции прервано',
+      on_field_entered=on_field_entered,
+    ))
+    
+  def handleShowTranslations(self):
+    if not self._checkTimesheet():
+      return
+    timesheet_id = self.findTimesheet().id
+    trs = self.translationRepo.findAll(lambda tr: tr.timesheetId == timesheet_id)
+    if len(trs) == 0:
+      self.send('А никого :(', emoji='fail')
+    else:
+      self.send('Вот они все:\n' + '\n'.join(
+        f'{get_emoji("translation")} {tr.destination.getUrl(tr.messageId)}' for tr in trs
+      ))
+      
+  def handleRemoveTranslation(self):
+    def on_field_entered(data):
+      tr = self.translationRepo.findIf(
+        lambda t: (t.timesheetId == self.timesheetId and
+                   t.destination.chat == data[0] and
+                   t.messageId == data[1])
+      )
+      if tr is None:
+        self.send('Не найдено трансляции в данное сообщение :(', emoji='fail')
+      else:
+        tr.emitDestroy('remove by command')
+        self.send('Трансляция успешно удалена!', emoji='ok')
+      self.resetTgState()
+  
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ссылку на пост',
+      validator=TgMessageUrlValidator(),
+      terminate_message='Удаление трансляции прервано',
       on_field_entered=on_field_entered,
     ))
     

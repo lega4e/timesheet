@@ -35,32 +35,37 @@ class MessageMaker(LocatorStorage):
     return pieces
   
   @staticmethod
-  def destinationSets(sets: Optional[DestinationSettings]) -> [Piece]:
+  def destinationSets(
+    sets: Optional[DestinationSettings],
+    command: str,
+    include_black_lists: bool = True,
+  ) -> [Piece]:
     pieces = list()
 
-    pieces.append(Piece(f'{get_emoji("info")} Заголовок\n'))
+    pieces.append(Piece(f'{get_emoji("info")} Заголовок /set_{command}_head\n'))
     if sets.head is None:
       pieces.append(Piece(f'Его нет :(\n\n'))
     else:
       pieces.extend([*sets.head, Piece('\n\n')])
 
-    pieces.append(Piece(f'{get_emoji("info")} Подвал\n'))
+    pieces.append(Piece(f'{get_emoji("info")} Подвал /set_{command}_tail\n'))
     if sets.tail is None:
       pieces.append(Piece(f'Его нет :(\n\n'))
     else:
       pieces.extend([*sets.tail, Piece('\n\n')])
 
-    pieces.append(Piece(f'{get_emoji("info")} Чёрный список событий\n'))
-    if len(sets.blackList) == 0:
-      pieces.append(Piece(f'Пусто!\n\n'))
-    else:
-      pieces.append(Piece(', '.join([str(n) for n in sets.blackList]) + '\n\n', type='code'))
+    if include_black_lists:
+      pieces.append(Piece(f'{get_emoji("info")} Чёрный список событий /set_{command}_black_list\n'))
+      if len(sets.blackList) == 0:
+        pieces.append(Piece(f'Пусто!\n\n'))
+      else:
+        pieces.append(Piece(', '.join([str(n) for n in sets.blackList]) + '\n\n', type='code'))
 
-    pieces.append(Piece(f'{get_emoji("info")} Чёрный список слов\n'))
-    if len(sets.blackList) == 0:
-      pieces.append(Piece(f'Пусто!\n\n'))
-    else:
-      pieces.append(Piece(', '.join(sets.wordsBlackList) + '\n\n', type='code'))
+      pieces.append(Piece(f'{get_emoji("info")} Чёрный список слов /set_{command}_words_black_list\n'))
+      if len(sets.wordsBlackList) == 0:
+        pieces.append(Piece(f'Пусто!\n\n'))
+      else:
+        pieces.append(Piece(', '.join(sets.wordsBlackList) + '\n\n', type='code'))
       
     pieces.append(Piece(f'{get_emoji("info")} Формат строки мероприятия\n'))
     if sets.lineFormat is None:
@@ -77,12 +82,14 @@ class MessageMaker(LocatorStorage):
     if timesheet is None:
       pieces.append(Piece('Его нет\n\n'))
       return pieces
-    pieces.append(Piece(f'\n{get_emoji("info")} Название и пароль\n'))
+    pieces.append(Piece(f'\n{get_emoji("info")} Название и пароль /set_timesheet\n'))
     pieces.append(Piece(timesheet.name, type='code'))
     pieces.append(Piece('\n'))
     pieces.append(Piece(timesheet.password, type='code'))
     pieces.append(Piece('\n\n'))
-    pieces.extend(MessageMaker.destinationSets(timesheet.destinationSets))
+    pieces.extend(MessageMaker.destinationSets(timesheet.destinationSets,
+                                               include_black_lists=False,
+                                               command='timesheet'))
     return pieces
 
   @staticmethod
@@ -92,10 +99,11 @@ class MessageMaker(LocatorStorage):
     if destination is None:
       pieces.append(Piece('Его нет\n\n'))
       return pieces
-    pieces.append(Piece(f'\n{get_emoji("info")} Ссыль\n'))
+    pieces.append(Piece(f'\n{get_emoji("info")} Ссыль /set_destination\n'))
     pieces.append(Piece(f't.me/{MessageMaker.chat(destination.chat)}'))
     pieces.append(Piece('\n\n'))
-    pieces.extend(MessageMaker.destinationSets(destination.sets))
+    pieces.extend(MessageMaker.destinationSets(destination.sets,
+                                               command='destination'))
     return pieces
   
   @staticmethod
@@ -168,7 +176,7 @@ def event_predicat(event: Event, sets: DestinationSettings):
   if event.id in sets.blackList:
     return False
   for word in sets.wordsBlackList:
-    if word in event.desc:
+    if word.lower() in event.desc.lower():
       return False
   return True
   

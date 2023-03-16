@@ -30,7 +30,7 @@ class DestinationSettings(Notifier, Serializable):
       'head': self.head,
       'tail': self.tail,
       'black_list': self.blackList,
-      'words_blackList': self.wordsBlackList,
+      'words_black_list': self.wordsBlackList,
       'line_format': self.lineFormat,
     }
 

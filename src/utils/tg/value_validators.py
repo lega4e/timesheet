@@ -72,6 +72,7 @@ class OrValidator(Validator):
     self.validators = validators
   
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
+    obj = o
     for validator in self.validators:
       obj = validator.validate(o)
       if obj.success:
@@ -199,4 +200,44 @@ class UrlValidator(Validator):
       o.success, o.error, o.emoji = False, self.error, 'fail'
     else:
       o.data = o.message.text
+    return o
+
+
+class IntegerListValidator(Validator):
+  def __init__(self, error: str = None):
+    self.error = error or [
+      Piece('Что-то не так :( ожидается список чисел '
+            '— просто числа, отделённые друг от друга '
+            'пробелом и ничем больше. Например:\n'),
+      Piece('4 5 28 2', type='code'),
+    ]
+  
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
+    words: List[str] = o.data.split()
+    try:
+      values = [int(word) for word in words]
+      o.data = values
+    except:
+      o.success, o.error, o.emoji = False, self.error, 'fail'
+    return o
+
+
+
+class WordListValidator(Validator):
+  def __init__(self, error: str = None):
+    self.error = error or [
+      Piece('Что-то не так :( ожидается список слов; '
+            'слова могут содержать только буквы, цифры и '
+            'символы нижнего подчёркивания; слова отделяётся '
+            'друг от друга пробелом и ничем больше. Например:\n'),
+      Piece('я_не_хочу_это_постить куй 666 ругательство', type='code'),
+    ]
+  
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
+    words: List[str] = o.data.split()
+    o.data = words
+    for word in words:
+      if re.match('\w+', word) is None:
+        o.success, o.error, o.emoji = False, self.error, 'fail'
+        return o
     return o
