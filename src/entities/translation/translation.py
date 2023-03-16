@@ -105,7 +105,8 @@ class Translation(Notifier, LocatorStorage, Serializable):
     return self._translate()
     
   def emitDestroy(self, reason: str):
-    s = f'Translation Emit Destroy {self.destination.chat}/{self.messageId} ({reason})'
+    chat = 'none' if self.destination is None else self.destination.chat
+    s = f'Translation Emit Destroy {chat}/{self.messageId} ({reason})'
     self.locator.flogger().info(s)
     if self._dispose is not None:
       self._dispose[0]()
