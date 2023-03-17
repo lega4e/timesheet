@@ -138,7 +138,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_form_entered=on_form_entered,
       fields=[constructor.make_name_input_field(lambda _: True),
               constructor.make_datetime_input_field(lambda _: True),
-              constructor.make_place_input_field(lambda _: True),
+              constructor.make_place_input_field(lambda _: True, self.places),
               constructor.make_url_input_field(lambda _: True)]
     ))
 
