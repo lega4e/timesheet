@@ -24,7 +24,9 @@ class TgState:
       self._substate.terminate()
       self.resetTgState()
     
-  def setTgState(self, state, silent=False):
+  def setTgState(self, state, silent=False, terminate=True):
+    if terminate:
+      self.terminateSubstate()
     self._substate = state
     if not silent:
       state.start()

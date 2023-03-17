@@ -10,6 +10,7 @@ class Emoji:
   STRAWBERRY = '🍓'
   CAKE = '🍰'
   OFFICER = '🫡'
+  SPIKE='🖖'
   
 def get_emoji(emoji: str = None):
   return {
@@ -21,4 +22,5 @@ def get_emoji(emoji: str = None):
     'info': Emoji.STRAWBERRY,
     'infoglob': Emoji.CAKE,
     'translation': Emoji.OFFICER,
+    'place': Emoji.SPIKE,
   }.get(emoji)

@@ -1,4 +1,4 @@
-from telebot.types import BotCommand, CallbackQuery
+from telebot.types import BotCommand, CallbackQuery, Message
 
 from src.domain.locator import glob
 from src.entities.message_maker.help import commands
@@ -11,7 +11,8 @@ users = locator.userRepo()
 
 def user_finder(func):
   def wrapper(m, res=False):
-    func(users.find(m.chat.id) if m.chat.id > 0 else None, m, res)
+    # func(users.find(m.chat.id) if m.chat.id > 0 else None, m, res)
+    func(users.find(m.chat.id), m, res)
   return wrapper
 
 
@@ -87,6 +88,30 @@ def handle_edit_event(user, _, __=False):
 def handle_remove_event(user, _, __=False):
   if user is not None:
     user.handleRemoveEvent()
+
+
+@tg.message_handler(commands=['add_place'])
+@log_text
+@user_finder
+def handle_add_place(user, _, __=False):
+  if user is not None:
+    user.handleAddPlace()
+
+
+@tg.message_handler(commands=['show_places'])
+@log_text
+@user_finder
+def handle_show_places(user, _, __=False):
+  if user is not None:
+    user.handleShowPlaces()
+
+
+@tg.message_handler(commands=['remove_places'])
+@log_text
+@user_finder
+def handle_remove_places(user, _, __=False):
+  if user is not None:
+    user.handleRemovePlaces()
 
 
 # timesheet commands
@@ -221,19 +246,27 @@ def handle_show_timesheet_list(user, _, __=False):
 
 
 # other
-@tg.message_handler(content_types=['text'])
+@tg.message_handler(content_types=['text', 'photo', 'video', 'audio'])
 @log_text
 @user_finder
 def handle_message(user, m, __=False):
   if user is not None:
+    # m.text = m.text or m.caption
+    # if _is_forward_message(m):
+    #   user.handleForwardMessage(m)
+    # else:
     user.handleMessage(m)
-  
+
   
 @tg.callback_query_handler(func=lambda call: True)
 def callback_query(call: CallbackQuery):
   user = users.find(call.from_user.id)
   if user is not None:
     user.handleCallbackQuery(call)
+    
+    
+def _is_forward_message(m: Message):
+  return m.forward_from is not None or m.forward_from_chat is not None
 
 
 def set_my_commands():

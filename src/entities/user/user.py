@@ -36,6 +36,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     chat: int = None,
     timesheet_id: int = None,
     destination: Destination = None,
+    places: List[str] = None,
     serialized: {str : Any} = None,
   ):
     Notifier.__init__(self)
@@ -56,6 +57,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.chat = chat
       self.timesheetId = timesheet_id
       self.destination = destination
+      self.places = places or []
     self.eventPredicat = default_event_predicat
 
     
@@ -81,11 +83,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       'chat': self.chat,
       'timesheet_id': self.timesheetId,
       'destination_chat': self.destination.chat if self.destination is not None else None,
+      'places': self.places,
     }
     
   def deserialize(self, serialized: {str: Any}):
     self.chat = serialized['chat']
     self.timesheetId = serialized.get('timesheet_id')
+    self.places = serialized.get('places') or []
     self.destination = None
     destination_chat = serialized.get('destination_chat')
     if destination_chat is not None:
@@ -93,7 +97,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
 
   # HANDLERS FOR TELEGRAM
-  # common commands
   def handleStart(self):
     self.terminateSubstate()
     self.send('Приветствуют тебя, мастер, заведующий расписанием!')
@@ -102,12 +105,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     self.send(message=self.msgMaker.help())
 
-  def handleShowTimesheetInfo(self):
-    self.send(self.msgMaker.timesheet(self.findTimesheet()))
-
-  def handleShowDestinationInfo(self):
-    self.send(self.msgMaker.destination(self.destination))
-    
 
   # event commands
   def handleMakeEvent(self):
@@ -144,6 +141,17 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
               constructor.make_place_input_field(lambda _: True),
               constructor.make_url_input_field(lambda _: True)]
     ))
+
+  def handleShowEvents(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    events = sorted(list(self.findTimesheet().events()),
+                    key=lambda e: e.start)
+    if len(events) == 0:
+      self.send('Пусто :(', emoji='fail')
+    else:
+      self.send('\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
   def handleEditEvent(self):
     def on_field_entered(event):
@@ -187,7 +195,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
           [BranchButton(
              'Место/Орг.',
              constructor.make_place_input_field(
-               lambda value: on_event_field_entered(value, 'place')
+               lambda value: on_event_field_entered(value, 'place'),
+               places=self.places,
              )
            ),
            BranchButton(
@@ -207,7 +216,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         ],
         on_terminate=lambda: self.send('Редактирование мероприятия заверщено', emoji='ok')
       )
-      self.setTgState(state)
+      self.setTgState(state, terminate=False)
 
     self.terminateSubstate()
     if not self._checkTimesheet():
@@ -220,17 +229,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_field_entered,
       validator=self._eventValidator(),
     ))
-    
-  def handleShowEvents(self):
-    self.terminateSubstate()
-    if not self._checkTimesheet():
-      return
-    events = sorted(list(self.findTimesheet().events()),
-                    key=lambda e: e.start)
-    if len(events) == 0:
-      self.send('Пусто :(', emoji='fail')
-    else:
-      self.send('\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
   def handleRemoveEvent(self):
     self.terminateSubstate()
@@ -250,6 +248,68 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       terminate_message='Прервано удаление мероприятия',
       on_field_entered=on_field_entered,
       validator=self._eventValidator(),
+    ))
+
+  def handleAddPlace(self):
+    def on_place_enter(data):
+      if data in self.places:
+        self.send('Это место уже добавлено..', emoji='fail')
+      else:
+        self.places.append(data)
+        self.send(f'Место "{data}" успешно добавлено', emoji='ok')
+        self.notify()
+      self.resetTgState()
+    
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите название места или организации',
+      terminate_message='Добавление места прервано',
+      validator=TextValidator(),
+      on_field_entered=on_place_enter,
+    ))
+    
+  def handleShowPlaces(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    if len(self.places) == 0:
+      self.send('А никого :(', emoji='fail')
+    else:
+      self.send('Места:\n' + '\n'.join(
+        f'{get_emoji("place")} {place}'for place in self.places)
+      )
+
+  def handleRemovePlaces(self):
+    def on_place_enter(data):
+      remove = []
+      for place in self.places:
+        if data.lower() in place.lower():
+          remove.append(place)
+          
+      if len(remove) == 0:
+        self.send('Ни одного такого места не найдено :(', emoji='fail')
+      else:
+        for place in remove:
+          self.places.remove(place)
+        self.send(f'Следующие места удалены: {",".join(remove)}', emoji='ok')
+        self.notify()
+      self.resetTgState()
+  
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите название места или его часть; все места, '
+               'содержащие введённую строку, будут удалены',
+      terminate_message='Удаление места прервано',
+      validator=TextValidator(),
+      on_field_entered=on_place_enter,
     ))
 
 
@@ -284,7 +344,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.resetTgState()
       self.notify()
     
-    self.terminateSubstate()
     self.setTgState(TgInputForm(
       tg=self.tg,
       chat=self.chat,
@@ -311,7 +370,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         )
       ]
     ))
-    
+
+  def handleShowTimesheetInfo(self):
+    self.send(self.msgMaker.timesheet(self.findTimesheet()))
+
   def handleSetTimesheet(self):
     tm = {}
     
@@ -349,7 +411,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.resetTgState()
       self.notify()
 
-    self.terminateSubstate()
     self.setTgState(TgInputForm(
       tg=self.tg,
       chat=self.chat,
@@ -449,7 +510,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.resetTgState()
       self.notify()
 
-    self.terminateSubstate()
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
@@ -459,6 +519,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_field_entered,
     ))
 
+  def handleShowDestinationInfo(self):
+    self.send(self.msgMaker.destination(self.destination))
+    
   def handleSetDestinationHead(self):
     self.terminateSubstate()
     if not self._checkDestination():
@@ -547,6 +610,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       buttons=[[InputFieldButton('Оставить пустым', [], 'Пусть будет пусто')]],
     ))
   
+
+  # translate commands
   def handlePostPreview(self):
     self.terminateSubstate()
     if not self._checkTimesheet():
@@ -555,8 +620,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if message is not None:
       self.send(message)
 
-
-  # translate commands
   def handleTranslate(self):
     self.terminateSubstate()
     if not self._checkTimesheet() or not self._checkDestination():
