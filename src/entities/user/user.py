@@ -448,7 +448,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     def on_entered(data):
       if not self._checkTimesheet():
         return
-      self.findTimesheet().setHead(data)
+      timehseet = self.findTimesheet()
+      timehseet.destinationSets.head = data
+      timehseet.destinationSets.notify()
       self.send('Заголовок успешно установлен!', emoji='ok')
       self.resetTgState()
       
@@ -469,7 +471,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     def on_entered(data):
       if not self._checkTimesheet():
         return
-      self.findTimesheet().setTail(data)
+      timehseet = self.findTimesheet()
+      timehseet.destinationSets.tail = data
+      timehseet.destinationSets.notify()
       self.send('Подвал успешно установлен!', emoji='ok')
       self.resetTgState()
   
@@ -480,6 +484,35 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=PieceValidator(),
       terminate_message='Ввод подвала прерван',
+    ))
+
+  def handleSetTimesheetEventFormat(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+  
+    def on_entered(data):
+      if not self._checkTimesheet():
+        return
+      timesheet = self.findTimesheet()
+      timesheet.destinationSets.lineFormat = data
+      timesheet.destinationSets.notify()
+      self.send('Формат успешно установлен!', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting=[Piece('Введите формат строки мероприятия\n'),
+                Piece('%s', type='code'), Piece(' - время начала мероприятия\n'),
+                Piece('%p', type='code'), Piece(' - место проведения мероприятия\n'),
+                Piece('%n', type='code'), Piece(' - название мероприятия\n'),
+                Piece('%i', type='code'), Piece(' - идентификатор мероприятия\n'),
+                Piece('Стандартное значение: '),
+                Piece(DestinationSettings.default().lineFormat, type='code')],
+      on_field_entered=on_entered,
+      validator=TextValidator(),
+      terminate_message='Ввод формата прерван',
     ))
 
   def handleShowTimesheetList(self):
@@ -560,6 +593,34 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=PieceValidator(),
       terminate_message='Ввод подвала прерван',
+    ))
+
+  def handleSetDestinationEventFormat(self):
+    self.terminateSubstate()
+    if not self._checkDestination():
+      return
+  
+    def on_entered(data):
+      if not self._checkDestination():
+        return
+      self.destination.sets.lineFormat = data
+      self.destination.sets.notify()
+      self.send('Формат успешно установлен!', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting=[Piece('Введите формат строки мероприятия\n'),
+                Piece('%s', type='code'), Piece(' - время начала мероприятия\n'),
+                Piece('%p', type='code'), Piece(' - место проведения мероприятия\n'),
+                Piece('%n', type='code'), Piece(' - название мероприятия\n'),
+                Piece('%i', type='code'), Piece(' - идентификатор мероприятия\n'),
+                Piece('Стандартное значение: '),
+                Piece(DestinationSettings.default().lineFormat, type='code')],
+      on_field_entered=on_entered,
+      validator=TextValidator(),
+      terminate_message='Ввод формата прерван',
     ))
 
   def handleSetDestinationBlackList(self):

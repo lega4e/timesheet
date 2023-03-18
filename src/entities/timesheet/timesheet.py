@@ -58,14 +58,6 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       if event is not None
     }
 
-  def setHead(self, head: [Piece] = None):
-    self.destinationSets.head = head
-    self.destinationSets.notify()
-
-  def setTail(self, tail: [Piece] = None):
-    self.destinationSets.tail = tail
-    self.destinationSets.notify()
-
   def addEvent(self, id: int):
     self._events[id] = (self.eventRepo
                             .find(id)

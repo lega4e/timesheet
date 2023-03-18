@@ -131,7 +131,8 @@ class MessageMaker(LocatorStorage):
         new_day = False
       if len(paragraph) > 0:
         paragraph.append(Piece('\n'))
-      paragraph.extend(get_event_line(event, url=event.url))
+      paragraph.extend(get_event_line(sets.lineFormat or sets.default().lineFormat,
+                                      event, url=event.url))
       if i+1 == len(events) or is_other_day(events[i].start, events[i+1].start):
         paragraphs.append(paragraph)
         new_day = True
@@ -144,16 +145,33 @@ class MessageMaker(LocatorStorage):
   
   @staticmethod
   def eventPreview(event: Event) -> str:
-    line = ''.join([piece.text for piece in get_event_line(event)])
-    if event.url is not None:
-      line += f', {event.url}'
-    return f'{line[0]} #{event.id} {get_day(event.start, weekday=False)} {line[2:]}'
+    line = ''.join([piece.text for piece in get_event_line('👉 #%i %s %p %n', event)])
+    return f'{line}, {event.url}' if event.url is not None else line
 
 
-def get_event_line(event: Event, url: str = None) -> [Piece]:
-  return [Piece(f'👉 {event.place.name} ' +
-                get_start_finish_time(event.start, event.finish) + ' '),
-          Piece(event.desc, url=url)]
+def get_event_line(fmt: str, event: Event, url: str = None) -> [Piece]:
+  result = []
+  p, i = 0, 0
+  while True:
+    i = fmt.find('%', p)
+    if i < 0 or i-1 >= len(fmt):
+      result.append(Piece(fmt[p:]))
+      break
+    result.append(Piece(fmt[p:i]))
+    if fmt[i+1] == '%':
+      result.append(Piece(fmt[i]))
+    elif fmt[i+1] == 'p':
+      result.append(Piece(event.place.name))
+    elif fmt[i+1] == 's':
+      result.append(Piece(event.start.strftime("%H:%M")))
+    elif fmt[i + 1] == 'n':
+      result.append(Piece(event.desc, url=url))
+    elif fmt[i+1] == 'i':
+      result.append(Piece(str(event.id)))
+    else:
+      result.append(Piece(fmt[i:i+2]))
+    p = i+2
+  return result
 
 
 def is_other_day(lhs: dt.datetime, rhs: dt.datetime):
@@ -166,11 +184,6 @@ def get_day(date: dt.datetime, weekday: bool = True) -> str:
           date.strftime('%B') + (', ' + date.strftime('%A')
                                  if weekday else
                                  '')).lower()
-
-
-def get_start_finish_time(start: dt.datetime, _: dt.datetime) -> str:
-  return f'{start.strftime("%H:%M")}'
-
 
 def event_predicat(event: Event, sets: DestinationSettings):
   if event.id in sets.blackList:

@@ -3,6 +3,7 @@ import traceback
 
 import src.domain.handlers as handlers
 from src.domain.locator import glob
+from src.entities.message_maker.message_maker import get_event_line
 
 locator = glob()
 tg = locator.tg()
@@ -50,14 +51,13 @@ def print_events():
 def print_lira_objs():
   for cat in lira.cats():
     print(cat)
+    
+def test_get_evet_line():
+  get_event_line('👉 (%s) %p %n', None)
 
 
 def main():
   set_locale()
   handlers.set_my_commands()
   log.info('Bot Started!')
-  while True:
-    try:
-      tg.polling(none_stop=True, interval=0)
-    except Exception:
-      log.error(traceback.format_exc())
+  tg.infinity_polling(none_stop=True, interval=0)

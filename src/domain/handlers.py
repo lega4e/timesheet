@@ -171,6 +171,14 @@ def handle_set_destination_word_black_list(user, _, __=False):
     user.handleSetDestinationWordsBlackList()
 
 
+@tg.message_handler(commands=['set_destination_event_format'])
+@log_text
+@user_finder
+def handle_set_destination_event_format(user, _, __=False):
+  if user is not None:
+    user.handleSetDestinationEventFormat()
+
+
 @tg.message_handler(commands=['post_preview'])
 @log_text
 @user_finder
@@ -236,6 +244,14 @@ def handle_set_timesheet_tail(user, _, __=False):
     user.handleSetTimesheetTail()
 
 
+@tg.message_handler(commands=['set_timesheet_event_format'])
+@log_text
+@user_finder
+def handle_set_timesheet_event_format(user, _, __=False):
+  if user is not None:
+    user.handleSetTimesheetEventFormat()
+
+
 @tg.message_handler(commands=['show_timesheet_list'])
 @log_text
 @user_finder
@@ -250,10 +266,6 @@ def handle_show_timesheet_list(user, _, __=False):
 @user_finder
 def handle_message(user, m, __=False):
   if user is not None:
-    # m.text = m.text or m.caption
-    # if _is_forward_message(m):
-    #   user.handleForwardMessage(m)
-    # else:
     user.handleMessage(m)
 
   
