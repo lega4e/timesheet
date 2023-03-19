@@ -1,10 +1,9 @@
-from typing import Iterable, Any, Callable
+from typing import Any, Callable
 
 from src.domain.locator import LocatorStorage, Locator
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.entities.event.event_repository import EventRepo
-from src.entities.message_maker.piece import Piece
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
 
@@ -31,6 +30,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       self.destinationSets = destination_sets or DestinationSettings()
       self.destinationSets.addListener(lambda s: self.notify())
       self._events: {int: Callable} = dict()
+      self.places = []
     
   def serialize(self) -> {str : Any}:
     return {
@@ -39,6 +39,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       'password': self.password,
       'destination_sets': self.destinationSets.serialize(),
       'events': {id for id, callback in self._events.items()},
+      'places': self.places,
     }
   
   def deserialize(self, serialized: {str: Any}):
@@ -57,6 +58,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       for event in events
       if event is not None
     }
+    self.places = serialized.get('places') or []
 
   def addEvent(self, id: int):
     self._events[id] = (self.eventRepo

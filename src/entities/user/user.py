@@ -36,7 +36,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     chat: int = None,
     timesheet_id: int = None,
     destination: Destination = None,
-    places: List[str] = None,
     serialized: {str : Any} = None,
   ):
     Notifier.__init__(self)
@@ -57,7 +56,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.chat = chat
       self.timesheetId = timesheet_id
       self.destination = destination
-      self.places = places or []
     self.eventPredicat = default_event_predicat
 
     
@@ -83,13 +81,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       'chat': self.chat,
       'timesheet_id': self.timesheetId,
       'destination_chat': self.destination.chat if self.destination is not None else None,
-      'places': self.places,
     }
     
   def deserialize(self, serialized: {str: Any}):
     self.chat = serialized['chat']
     self.timesheetId = serialized.get('timesheet_id')
-    self.places = serialized.get('places') or []
     self.destination = None
     destination_chat = serialized.get('destination_chat')
     if destination_chat is not None:
@@ -138,7 +134,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_form_entered=on_form_entered,
       fields=[constructor.make_name_input_field(lambda _: True),
               constructor.make_datetime_input_field(lambda _: True),
-              constructor.make_place_input_field(lambda _: True, self.places),
+              constructor.make_place_input_field(lambda _: True,
+                                                 self.findTimesheet().places),
               constructor.make_url_input_field(lambda _: True)]
     ))
 
@@ -196,7 +193,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
              'Место/Орг.',
              constructor.make_place_input_field(
                lambda value: on_event_field_entered(value, 'place'),
-               places=self.places,
+               places=self.findTimesheet().places,
              )
            ),
            BranchButton(
@@ -252,12 +249,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   def handleAddPlace(self):
     def on_place_enter(data):
-      if data in self.places:
+      timesheet = self.findTimesheet()
+      if data in timesheet.places:
         self.send('Это место уже добавлено..', emoji='fail')
       else:
-        self.places.append(data)
+        timesheet.places.append(data)
         self.send(f'Место "{data}" успешно добавлено', emoji='ok')
-        self.notify()
+        timesheet.notify()
       self.resetTgState()
     
     self.terminateSubstate()
@@ -276,17 +274,19 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     if not self._checkTimesheet():
       return
-    if len(self.places) == 0:
+    timesheet = self.findTimesheet()
+    if len(timesheet.places) == 0:
       self.send('А никого :(', emoji='fail')
     else:
       self.send('Места:\n' + '\n'.join(
-        f'{get_emoji("place")} {place}'for place in self.places)
+        f'{get_emoji("place")} {place}'for place in timesheet.places)
       )
 
   def handleRemovePlaces(self):
     def on_place_enter(data):
       remove = []
-      for place in self.places:
+      timesheet = self.findTimesheet()
+      for place in timesheet.places:
         if data.lower() in place.lower():
           remove.append(place)
           
@@ -294,9 +294,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         self.send('Ни одного такого места не найдено :(', emoji='fail')
       else:
         for place in remove:
-          self.places.remove(place)
+          timesheet.places.remove(place)
         self.send(f'Следующие места удалены: {",".join(remove)}', emoji='ok')
-        self.notify()
+        timesheet.notify()
       self.resetTgState()
   
     self.terminateSubstate()
