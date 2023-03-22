@@ -9,6 +9,8 @@ from src.utils.serialize import Serializable
 
 
 class Timesheet(Notifier, LocatorStorage, Serializable):
+  EMIT_PLACES_CHANGED = 'EMIT_PLACES_CHANGED'
+  
   def __init__(
     self,
     locator: Locator,

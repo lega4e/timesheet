@@ -255,7 +255,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       else:
         timesheet.places.append(data)
         self.send(f'Место "{data}" успешно добавлено', emoji='ok')
-        timesheet.notify()
+        timesheet.notify(timesheet.EMIT_PLACES_CHANGED)
       self.resetTgState()
     
     self.terminateSubstate()
@@ -296,7 +296,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         for place in remove:
           timesheet.places.remove(place)
         self.send(f'Следующие места удалены: {",".join(remove)}', emoji='ok')
-        timesheet.notify()
+        timesheet.notify(timesheet.EMIT_PLACES_CHANGED)
       self.resetTgState()
   
     self.terminateSubstate()

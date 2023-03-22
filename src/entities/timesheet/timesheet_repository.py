@@ -20,7 +20,7 @@ class TimesheetRepo(LiraRepo):
     return Timesheet(locator=self.locator, serialized=serialized)
 
   def addValueListener(self, value: T, listener: Callable):
-    value.addListener(listener)
+    value.addListener(listener, event=[None, Timesheet.EMIT_PLACES_CHANGED])
 
   def keyByValue(self, value: T) -> Key:
     return value.id
