@@ -897,7 +897,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       events,
       DestinationSettings.merge(
         timesheet.destinationSets,
-        DestinationSettings.default()
+        DestinationSettings()
         if self.destination is None else
         self.destination.sets
       ),
