@@ -270,6 +270,28 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_place_enter,
     ))
     
+  def handleSetPlaces(self):
+    def on_place_enter(data: str):
+      timesheet = self.findTimesheet()
+      timesheet.places = [line.strip() for line in data.split('\n')]
+      self.send(f'Места  успешно установлены', emoji='ok')
+      timesheet.notify(timesheet.EMIT_PLACES_CHANGED)
+      self.resetTgState()
+  
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите места (одна строка — одно место). '
+               'Все старые места будут удалены и заменены новыми.\n\n'
+               'Посмотреть существующие места: /show_places',
+      terminate_message='Установка мест прервана',
+      validator=TextValidator(),
+      on_field_entered=on_place_enter,
+    ))
+
   def handleShowPlaces(self):
     self.terminateSubstate()
     if not self._checkTimesheet():
@@ -278,9 +300,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if len(timesheet.places) == 0:
       self.send('А никого :(', emoji='fail')
     else:
-      self.send('Места:\n' + '\n'.join(
-        f'{get_emoji("place")} {place}'for place in timesheet.places)
-      )
+      self.send([Piece('Существующие места:\n'),
+                 Piece('\n'.join(timesheet.places), type='code'),
+                 Piece('\n\nДобавить новое место: /add_place'),
+                 Piece('\nУстановить места: /set_places')])
 
   def handleRemovePlaces(self):
     def on_place_enter(data):
@@ -548,7 +571,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       chat=self.chat,
       greeting='Введите ссылку на публичный канал или группу',
       validator=TgPublicGroupOrChannelValidator(),
-      terminate_message='Подключение прервано',
+      terminate_message='Установка канала прервана',
       on_field_entered=on_field_entered,
     ))
 

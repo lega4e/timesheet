@@ -97,6 +97,14 @@ def handle_add_place(user, _, __=False):
     user.handleAddPlace()
 
 
+@tg.message_handler(commands=['set_places'])
+@log_text
+@user_finder
+def handle_set_places(user, _, __=False):
+  if user is not None:
+    user.handleSetPlaces()
+
+
 @tg.message_handler(commands=['show_places'])
 @log_text
 @user_finder
