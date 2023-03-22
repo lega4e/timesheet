@@ -513,11 +513,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.terminateSubstate()
     if not self._checkTimesheet():
       return
-  
+
+    timesheet = self.findTimesheet()
     def on_entered(data):
       if not self._checkTimesheet():
         return
-      timesheet = self.findTimesheet()
       timesheet.destinationSets.lineFormat = data
       timesheet.destinationSets.notify()
       self.send('Формат успешно установлен!', emoji='ok')
@@ -531,8 +531,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
                 Piece('%p', type='code'), Piece(' - место проведения мероприятия\n'),
                 Piece('%n', type='code'), Piece(' - название мероприятия\n'),
                 Piece('%i', type='code'), Piece(' - идентификатор мероприятия\n'),
-                Piece('Стандартное значение: '),
-                Piece(DestinationSettings.default().lineFormat, type='code')],
+                Piece('\nСтандартное значение: '),
+                Piece(DestinationSettings.default().lineFormat, type='code'),
+                Piece('\nТекущее значение: '),
+                Piece(timesheet.destinationSets.lineFormat, type='code')
+                if timesheet.destinationSets.lineFormat is not None else
+                Piece('Отсутствует')],
       on_field_entered=on_entered,
       validator=TextValidator(),
       terminate_message='Ввод формата прерван',
@@ -639,8 +643,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
                 Piece('%p', type='code'), Piece(' - место проведения мероприятия\n'),
                 Piece('%n', type='code'), Piece(' - название мероприятия\n'),
                 Piece('%i', type='code'), Piece(' - идентификатор мероприятия\n'),
-                Piece('Стандартное значение: '),
-                Piece(DestinationSettings.default().lineFormat, type='code')],
+                Piece('\nСтандартное значение: '),
+                Piece(DestinationSettings.default().lineFormat, type='code'),
+                Piece('\nТекущее значение: '),
+                Piece(self.destination.sets.lineFormat, type='code')
+                if self.destination.sets.lineFormat is not None else
+                Piece('Отсутствует')],
       on_field_entered=on_entered,
       validator=TextValidator(),
       terminate_message='Ввод формата прерван',

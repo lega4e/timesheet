@@ -67,7 +67,7 @@ class MessageMaker(LocatorStorage):
       else:
         pieces.append(Piece(', '.join(sets.wordsBlackList) + '\n\n', type='code'))
       
-    pieces.append(Piece(f'{get_emoji("info")} Формат строки мероприятия\n'))
+    pieces.append(Piece(f'{get_emoji("info")} Формат строки мероприятия /set_{command}_event_format\n'))
     if sets.lineFormat is None:
       pieces.append(Piece(f'Обыкновенный'))
     else:

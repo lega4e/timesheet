@@ -51,13 +51,10 @@ def print_events():
 def print_lira_objs():
   for cat in lira.cats():
     print(cat)
-    
-def test_get_evet_line():
-  get_event_line('👉 (%s) %p %n', None)
 
 
 def main():
   set_locale()
-  handlers.set_my_commands()
+  handlers.set_menu_commands()
   log.info('Bot Started!')
   tg.infinity_polling(none_stop=True, interval=0)

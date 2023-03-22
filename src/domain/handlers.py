@@ -288,7 +288,7 @@ def _is_forward_message(m: Message):
   return m.forward_from is not None or m.forward_from_chat is not None
 
 
-def set_my_commands():
+def set_menu_commands():
   tg.set_my_commands(commands=[
     BotCommand(command=com.name, description=com.short)
     for com in commands
