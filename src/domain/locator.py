@@ -3,6 +3,7 @@ import os
 
 class Locator:
   def __init__(self):
+    self._commandsManager = None
     self._config = None
     self._destinationRepo = None
     self._eventRepository = None
@@ -15,7 +16,13 @@ class Locator:
     self._timesheetRepository = None
     self._translationRepo = None
     self._userRepository = None
-    
+
+  def commandsManager(self):
+    if self._commandsManager is None:
+      from src.entities.commands_manager.manager import CommandsManager
+      self._commandsManager = CommandsManager(self)
+    return self._commandsManager
+
   def config(self):
     if self._config is None:
       from src.domain.config import Config

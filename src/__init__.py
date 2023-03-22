@@ -1,7 +1,5 @@
 import locale
-import traceback
 
-import src.domain.handlers as handlers
 from src.domain.locator import glob
 from src.entities.message_maker.message_maker import get_event_line
 
@@ -55,6 +53,7 @@ def print_lira_objs():
 
 def main():
   set_locale()
-  handlers.set_menu_commands()
+  locator.commandsManager().addHandlers()
+  locator.commandsManager().setMenuCommands()
   log.info('Bot Started!')
   tg.infinity_polling(none_stop=True, interval=0)

@@ -2,6 +2,7 @@ import datetime as dt
 from typing import Optional
 
 from src.domain.locator import LocatorStorage, Locator
+from src.entities.commands_manager.commands import global_command_list
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
@@ -25,7 +26,7 @@ class MessageMaker(LocatorStorage):
       reduce_list(lambda a, b: a + b,
                   insert_between(
                     [[Piece(f'{Emoji.COMMAND} ' + com.preview + '\n'), Piece(com.long)]
-                     for com in commands],
+                     for com in global_command_list],
                     [Piece('\n\n')],
                   ),
                   []),
