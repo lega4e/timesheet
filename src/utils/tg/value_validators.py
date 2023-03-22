@@ -191,15 +191,19 @@ class CorrectDatetimeValidator(Validator):
 
 
 
-class UrlValidator(Validator):
+class TgUrlValidator(Validator):
   def __init__(self, error: str = None):
     self.error = error or 'Что-то не похоже на ссылку :( давай ещё разок'
   
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
-    if re.match(r'^https?://.+\..+$', o.message.text) is None:
+    m = re.match(r'^((https?://[^/]+.[^/])|(t\.me)|@(\w+))(/.+)?$', o.message.text)
+    if m is None:
       o.success, o.error, o.emoji = False, self.error, 'fail'
     else:
-      o.data = o.message.text
+      if m.group(4) is not None:
+        o.data = 't.me/' + m.group(4)
+      else:
+        o.data = o.message.text
     return o
 
 

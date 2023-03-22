@@ -52,6 +52,6 @@ class TgEventInputFieldsConstructor:
       chat=self.chat,
       greeting='Введите ссылку на мероприятие',
       on_field_entered=on_field_entered,
-      validator=UrlValidator(),
+      validator=TgUrlValidator(),
       buttons=[[InputFieldButton(title='Пропустить', data=None)]]
     )
