@@ -101,15 +101,11 @@ class MessageMaker(LocatorStorage):
       pieces.append(Piece('Его нет\n\n'))
       return pieces
     pieces.append(Piece(f'\n{get_emoji("info")} Ссыль /set_destination\n'))
-    pieces.append(Piece(f't.me/{MessageMaker.chat(destination.chat)}'))
+    pieces.append(Piece(destination.getUrl()))
     pieces.append(Piece('\n\n'))
     pieces.extend(MessageMaker.destinationSets(destination.sets,
                                                command='destination'))
     return pieces
-  
-  @staticmethod
-  def chat(chat) -> str:
-    return str(chat) if isinstance(chat, int) else chat[1:]
 
   @staticmethod
   def timesheetPost(

@@ -86,7 +86,7 @@ global_command_list = [
     (
       'set_timesheet',
       '/set_timesheet',
-      'handleSet_timesheet',
+      'handleSetTimesheet',
       'Подключиться к расписанию',
       'Подключает к расписанию с указаным именем. Для защиты используется пароль: спросите его у создателя расписания',
       True,
@@ -201,6 +201,22 @@ global_command_list = [
       'handleSetDestinationEventFormat',
       'Установить формат события для канала',
       'Устанавливает формат события для канала',
+      False,
+    ),
+    (
+      'show_translations',
+      '/show_translations',
+      'handleShowTranslations',
+      'Показать трансляции',
+      'Показать трансляци',
+      False,
+    ),
+    (
+      'remove_translation',
+      '/remove_translation',
+      'handleRemoveTranslation',
+      'Удалить трансляцию',
+      'Удалить трансляцию',
       False,
     ),
     (

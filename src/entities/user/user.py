@@ -10,7 +10,7 @@ from src.entities.event.event import Place, Event
 from src.entities.event.event_fields_parser import datetime_today
 from src.entities.event.event_repository import EventRepo
 from src.entities.event.event_tg_maker import TgEventInputFieldsConstructor
-from src.entities.message_maker.accessory import send_message
+from src.domain.tg.api import send_message
 from src.entities.message_maker.emoji import Emoji, get_emoji
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.timesheet.timesheet import Timesheet
@@ -80,16 +80,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     return {
       'chat': self.chat,
       'timesheet_id': self.timesheetId,
-      'destination_chat': self.destination.chat if self.destination is not None else None,
+      'destination_id': self.destination.id if self.destination is not None else None,
     }
     
   def deserialize(self, serialized: {str: Any}):
     self.chat = serialized['chat']
     self.timesheetId = serialized.get('timesheet_id')
-    self.destination = None
-    destination_chat = serialized.get('destination_chat')
-    if destination_chat is not None:
-      self.destination = self.destinationRepo.find(destination_chat)
+    self.destination = self.destinationRepo.find(serialized.get('destination_id'))
 
 
   # HANDLERS FOR TELEGRAM
@@ -565,7 +562,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   # destination commands
   def handleSetDestination(self):
     def on_field_entered(data: str):
-      self.destination = self.destinationRepo.find(data)
+      self.destination = self.destinationRepo.findByChat(data)
       self.send(f'Успешное подключение к {data}', emoji='ok')
       self.resetTgState()
       self.notify()
@@ -737,7 +734,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       tr = self.translationRepo.putWithId(lambda id: Translation(
         locator=self.locator,
         id=id,
-        destination=self.destinationRepo.find(data[0]),
+        destination=self.destinationRepo.findByChat(data[0]),
         timesheet_id=self.timesheetId,
         message_id=data[1],
         creator=self.chat,
@@ -771,15 +768,15 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if len(trs) == 0:
       self.send('А никого :(', emoji='fail')
     else:
-      self.send('Вот они все:\n' + '\n'.join(
+      self.send('Вот они все:\n' + '\n'.join(sorted(
         f'{get_emoji("translation")} {tr.destination.getUrl(tr.messageId)}' for tr in trs
-      ))
+      )))
       
   def handleRemoveTranslation(self):
     def on_field_entered(data):
       tr = self.translationRepo.findIf(
         lambda t: (t.timesheetId == self.timesheetId and
-                   t.destination.chat == data[0] and
+                   t.destination.chat.chatId == data[0] and
                    t.messageId == data[1])
       )
       if tr is None:
@@ -806,7 +803,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if not self._checkDestination():
       return
     self.translationRepo.removeAll(
-      lambda tr: tr.destination.chat == self.destination.chat
+      lambda tr: tr.destination.chat.chatId == self.destination.chat.chatId
     )
     self.send('Успешно удалили все трансляции для выбранного канала', emoji='ok')
 
@@ -821,18 +818,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       emoji=emoji,
     )
     
-  def post(self, message):
-    try:
-      send_message(
-        tg=self.tg,
-        chat_id=self.destination.chat,
-        text=message,
-        disable_web_page_preview=True,
-      )
-      self.send('Пост успешно сделан!', emoji='ok')
-    except ApiTelegramException as e:
-      self._sendPostFail(e)
-
   def findTimesheet(self) -> Optional[Timesheet]:
     return (None
             if self.timesheetId is None else

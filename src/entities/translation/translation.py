@@ -1,4 +1,5 @@
 import traceback
+from copy import deepcopy
 
 from typing import Any, Callable, Optional
 
@@ -6,12 +7,13 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
 from src.domain.locator import LocatorStorage, Locator
+from src.domain.tg.tg_chat import TgChat
 from src.entities.destination.destination import Destination
 from src.entities.destination.destination_repo import DestinationRepo
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.entities.event.event_fields_parser import datetime_today
-from src.entities.message_maker.accessory import send_message
+from src.domain.tg.api import send_message
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.message_maker.piece import Piece, piece2string, piece2entities
 from src.entities.timesheet.timesheet import Timesheet
@@ -57,7 +59,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
   def serialize(self) -> {str: Any}:
     return {
       'id': self.id,
-      'destination_chat': self.destination.chat,
+      'destination_id': self.destination.id,
       'message_id': self.messageId,
       'timesheet_id': self.timesheetId,
       'creator': self.creator,
@@ -68,10 +70,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
     self.messageId: int = serialized['message_id']
     self.timesheetId: int = serialized['timesheet_id']
     self.creator: int = serialized.get('creator')
-    destination_chat = serialized.get('destination_chat')
-    self.destination = None
-    if destination_chat is not None:
-      self.destination = self.destinationRepo.find(destination_chat)
+    self.destination = self.destinationRepo.find(serialized.get('destination_id'))
 
   def connect(self) -> bool:
     if self.destination is None:
@@ -105,8 +104,8 @@ class Translation(Notifier, LocatorStorage, Serializable):
     return self._translate()
     
   def emitDestroy(self, reason: str):
-    chat = 'none' if self.destination is None else self.destination.chat
-    s = f'Translation Emit Destroy {chat}/{self.messageId} ({reason})'
+    chat = 'none' if self.destination is None else self.destination.getUrl(self.messageId)
+    s = f'Translation Emit Destroy {chat} ({reason})'
     self.locator.flogger().info(s)
     if self._dispose is not None:
       self._dispose[0]()
@@ -116,7 +115,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
 
   def _translate(self) -> bool:
     logger = self.locator.flogger()
-    logger_title = self._getLoggerTitle()
+    logger_title = self.destination.getUrl(message_id=self.messageId)
     timesheet = self._findAndCheckTimesheet()
     if timesheet is None:
       return False
@@ -125,9 +124,11 @@ class Translation(Notifier, LocatorStorage, Serializable):
       return False
     message, entities = piece2string(pieces), piece2entities(pieces)
     try:
-      self.tg.edit_message_text(
-        chat_id=self.destination.chat,
-        message_id=self.messageId,
+      chat: TgChat = deepcopy(self.destination.chat)
+      chat.messageId = self.messageId
+      send_message(
+        tg=self.tg,
+        chat_id=chat,
         text=message,
         entities=entities,
         disable_web_page_preview=True,

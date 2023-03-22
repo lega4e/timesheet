@@ -4,7 +4,7 @@ from typing import Callable, Optional
 from telebot import TeleBot
 from telebot.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from src.entities.message_maker.accessory import send_message
+from src.domain.tg.api import send_message
 from src.entities.message_maker.piece import piece2message
 from src.utils.tg.tg_state import TgState
 

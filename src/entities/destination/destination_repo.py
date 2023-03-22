@@ -1,6 +1,7 @@
 from typing import Callable, Any
 
 from src.domain.locator import Locator
+from src.domain.tg.tg_chat import TgChat
 from src.entities.destination.destination import Destination
 from src.utils.lira_repo import LiraRepo
 
@@ -23,7 +24,12 @@ class DestinationRepo(LiraRepo):
     value.addListener(listener)
 
   def keyByValue(self, value: T) -> Key:
-    return value.chat
-
-  def find(self, chat, **kargs) -> Destination:
-    return super().find(chat, lambda c: Destination(chat=c))
+    return value.id
+    
+  def findByChat(self, chat) -> Destination:
+    destination = self.findIf(lambda d: d.chat.chatId == chat)
+    if destination is not None:
+      return destination
+    return self.putWithId(
+      lambda id: Destination(id=id, chat=TgChat(type=TgChat.PUBLIC,chat_id=chat))
+    )

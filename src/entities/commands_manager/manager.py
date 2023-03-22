@@ -1,4 +1,4 @@
-from telebot.types import BotCommand, CallbackQuery
+from telebot.types import BotCommand, CallbackQuery, Message
 
 from src.domain.locator import LocatorStorage, Locator
 from src.entities.commands_manager.commands import global_command_list
@@ -13,14 +13,22 @@ class CommandsManager(LocatorStorage):
 
 
   # decorators
-  def userFinderDecorator(self, func):
+  def findUserDecorator(self, func):
     def wrapper(m, res=False):
       func(self.userRepo.find(m.chat.id) if m.chat.id > 0 else None, m, res)
     return wrapper
-  
-  def logMessageDecorator(self, func):
+
+  def logCommandDecorator(self, func):
     def wrapper(m, res=False):
       self.logger.text(m)
+      func(m, res)
+  
+    return wrapper
+
+  def logMessageDecorator(self, func):
+    def wrapper(m: Message, res=False):
+      if m.chat.id > 0:
+        self.logger.text(m)
       func(m, res)
     return wrapper
   
@@ -35,8 +43,8 @@ class CommandsManager(LocatorStorage):
     for command in global_command_list:
       exec(f'''
 @self.tg.message_handler(commands=[command.name])
-@self.logMessageDecorator
-@self.userFinderDecorator
+@self.logCommandDecorator
+@self.findUserDecorator
 def handle_{command.name}(user, _, __):
   if user is not None:
     exec(f'user.{command.userCommand}()')
@@ -45,7 +53,7 @@ def handle_{command.name}(user, _, __):
   def addMessageHandlers(self):
     @self.tg.message_handler(content_types=['text']) #, 'photo', 'video', 'audio'])
     @self.logMessageDecorator
-    @self.userFinderDecorator
+    @self.findUserDecorator
     def handle_message(user, m, __=False):
       if user is not None:
         user.handleMessage(m)
