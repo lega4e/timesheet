@@ -1,6 +1,6 @@
 from typing import Any, List, Set
 
-from src.entities.message_maker.piece import Piece
+from src.domain.tg.piece import Pieces
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
 
@@ -8,8 +8,8 @@ from src.utils.serialize import Serializable
 class DestinationSettings(Notifier, Serializable):
   def __init__(
     self,
-    head: [Piece] = None,
-    tail: [Piece] = None,
+    head: Pieces = None,
+    tail: Pieces = None,
     black_list: Set[int] = None,
     words_black_list: List[str] = None,
     line_format: str = None,
@@ -36,7 +36,11 @@ class DestinationSettings(Notifier, Serializable):
 
   def deserialize(self, serialized: {str: Any}):
     self.head = serialized.get('head')
+    if isinstance(self.head, list):
+      self.head = None
     self.tail = serialized.get('tail')
+    if isinstance(self.tail, list):
+      self.tail = None
     self.blackList = set(serialized.get('black_list') or {})
     self.wordsBlackList = list(serialized.get('words_black_list') or [])
     self.lineFormat = serialized.get('line_format')

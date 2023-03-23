@@ -1,5 +1,4 @@
 from telebot import TeleBot
-from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery
 from typing import Optional, Any
 
@@ -201,13 +200,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
            )],
           [BranchButton('Завершить', action=complete, callback_answer='Завершено')],
         ],
-        make_message=lambda: [
-          Piece(f'Название:   {event.desc}\n'
-                f'Начало:     {event.start.strftime("%x %X")}\n'
-                f'Место/Орг.: {event.place.name}\n'
-                f'URL:        {event.url}',
-                type='code')
-        ],
+        make_message=lambda: P(f'Название:   {event.desc}\n'
+                               f'Начало:     {event.start.strftime("%x %X")}\n'
+                               f'Место/Орг.: {event.place.name}\n'
+                               f'URL:        {event.url}',
+                               types='code'),
         on_terminate=lambda: self.send('Редактирование мероприятия заверщено', emoji='ok')
       )
       self.setTgState(state, terminate=False)
@@ -297,10 +294,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     if len(timesheet.places) == 0:
       self.send('А никого :(', emoji='fail')
     else:
-      self.send([Piece('Существующие места:\n'),
-                 Piece('\n'.join(timesheet.places), type='code'),
-                 Piece('\n\nДобавить новое место: /add_place'),
-                 Piece('\nУстановить места: /set_places')])
+      self.send(P('Существующие места:\n') +
+                P('\n'.join(timesheet.places), types='code') +
+                '\n\nДобавить новое место: /add_place' +
+                '\nУстановить места: /set_places')
 
   def handleRemovePlaces(self):
     def on_place_enter(data):
@@ -339,10 +336,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       timesheet = self.timesheetRepo.findByName(o.data)
       if timesheet is not None:
         o.success = False
-        o.error = [Piece('Расписание с именем '),
-                   Piece(f'{o.data}', type='code'),
-                   Piece(' уже есть :( давай по новой')]
-        o.emoji = 'fail'
+        o.error = (P('Расписание с именем ', emoji='fail') +
+                   P(f'{o.data}', types='code') +
+                   ' уже есть :( давай по новой')
       return o
     
     def on_form_entered(data: []):
@@ -355,12 +351,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         password=pswd,
       ))
       self.timesheetId = timesheet.id
-      self.send([Piece('Расписание '),
-                 Piece(f'{name}', type='code'),
-                 Piece(' с паролем '),
-                 Piece(f'{pswd}', type='code'),
-                 Piece(' успешно создано')],
-                emoji='ok')
+      self.send(P('Расписание ', emoji='ok') +
+                P(f'{name}', types='code') +
+                P(' с паролем ') +
+                P(f'{pswd}', types='code') +
+                P(' успешно создано'))
       self.resetTgState()
       self.notify()
     
@@ -392,6 +387,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     ))
 
   def handleShowTimesheetInfo(self):
+    self.terminateSubstate()
     self.send(self.msgMaker.timesheet(self.findTimesheet()))
 
   def handleSetTimesheet(self):
@@ -401,11 +397,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       timesheet = self.timesheetRepo.findByName(o.data)
       if timesheet is None:
         o.success = False
-        o.error = [Piece('Расписание с названием '),
-                   Piece(f'{o.data}', type='code'),
-                   Piece(' не найдено :( Существующие расписания '),
-                   Piece('можно посмотреть командой /show_timesheet_list')]
-        o.emoji = 'fail'
+        o.error = (P('Расписание с названием ', emoji='fail') +
+                   P(f'{o.data}', types='code') +
+                   P(' не найдено :( Существующие расписания ') +
+                   P('можно посмотреть командой /show_timesheet_list'))
       elif timesheet.id == self.timesheetId:
         o.success = False
         o.error = 'Это расписание уже выбрано..'
@@ -418,16 +413,14 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       timesheet = self.timesheetRepo.findByName(tm['name'])
       if timesheet.password != o.data:
         o.success = False
-        o.error = 'Пароль не подходит'
-        o.emoji = 'fail'
+        o.error = P('Пароль не подходит', emoji='fail')
       return o
     
     def on_form_entered(data: []):
       timesheet = self.timesheetRepo.findByName(data[0])
       self.timesheetId = timesheet.id
-      self.send([Piece('Успешно выбрано расписание '),
-                 Piece(f'{data[0]}', type='code')],
-                emoji='ok')
+      self.send(P('Успешно выбрано расписание ', emoji='ok') +
+                P(f'{data[0]}', types='code'))
       self.resetTgState()
       self.notify()
 
@@ -481,6 +474,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=PieceValidator(),
       terminate_message='Ввод заголовка прерван',
+      buttons=[[InputFieldButton('Очистить', None, 'Очищено')]],
     ))
 
   def handleSetTimesheetTail(self):
@@ -504,6 +498,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=PieceValidator(),
       terminate_message='Ввод подвала прерван',
+      buttons=[[InputFieldButton('Очистить', None, 'Очищено')]],
     ))
 
   def handleSetTimesheetEventFormat(self):
@@ -523,17 +518,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting=[Piece('Введите формат строки мероприятия\n'),
-                Piece('%s', type='code'), Piece(' - время начала мероприятия\n'),
-                Piece('%p', type='code'), Piece(' - место проведения мероприятия\n'),
-                Piece('%n', type='code'), Piece(' - название мероприятия\n'),
-                Piece('%i', type='code'), Piece(' - идентификатор мероприятия\n'),
-                Piece('\nСтандартное значение: '),
-                Piece(DestinationSettings.default().lineFormat, type='code'),
-                Piece('\nТекущее значение: '),
-                Piece(timesheet.destinationSets.lineFormat, type='code')
-                if timesheet.destinationSets.lineFormat is not None else
-                Piece('Отсутствует')],
+      greeting=self.msgMaker.eventFormatInput(timesheet.destinationSets),
       on_field_entered=on_entered,
       validator=TextValidator(),
       terminate_message='Ввод формата прерван',
@@ -546,15 +531,15 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.send('Не найдено ни одного расписания :(', emoji='fail')
     else:
       self.send(
-        [Piece('Существующие расписания:\n')] +
+        P('Существующие расписания:\n') +
         reduce_list(
           lambda a, b: a + b,
           insert_between(
-            [[Piece(f'{Emoji.TIMESHEET_ITEM} '), Piece(f'{name}', type='code')]
+            [P(f'{Emoji.TIMESHEET_ITEM} ') + P(f'{name}', types='code')
              for name in names],
-            [Piece('\n')],
+            '\n',
           ),
-          [],
+          P(),
         )
       )
 
@@ -577,6 +562,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     ))
 
   def handleShowDestinationInfo(self):
+    self.terminateSubstate()
     self.send(self.msgMaker.destination(self.destination))
     
   def handleSetDestinationHead(self):
@@ -597,6 +583,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=PieceValidator(),
       terminate_message='Ввод заголовка прерван',
+      buttons=[[InputFieldButton('Очистить', None, 'Очищено')]],
     ))
 
   def handleSetDestinationTail(self):
@@ -617,6 +604,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=PieceValidator(),
       terminate_message='Ввод подвала прерван',
+      buttons=[[InputFieldButton('Очистить', None, 'Очищено')]],
     ))
 
   def handleSetDestinationEventFormat(self):
@@ -635,17 +623,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting=[Piece('Введите формат строки мероприятия\n'),
-                Piece('%s', type='code'), Piece(' - время начала мероприятия\n'),
-                Piece('%p', type='code'), Piece(' - место проведения мероприятия\n'),
-                Piece('%n', type='code'), Piece(' - название мероприятия\n'),
-                Piece('%i', type='code'), Piece(' - идентификатор мероприятия\n'),
-                Piece('\nСтандартное значение: '),
-                Piece(DestinationSettings.default().lineFormat, type='code'),
-                Piece('\nТекущее значение: '),
-                Piece(self.destination.sets.lineFormat, type='code')
-                if self.destination.sets.lineFormat is not None else
-                Piece('Отсутствует')],
+      greeting=self.msgMaker.eventFormatInput(self.destination.sets),
       on_field_entered=on_entered,
       validator=TextValidator(),
       terminate_message='Ввод формата прерван',
@@ -722,9 +700,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       creator=self.chat,
     ))
     if tr is not None:
-      self.send([Piece('Успешно добавили '),
-                 Piece('трансляцию', url=self.destination.getUrl(tr.messageId))],
-                 emoji='ok')
+      self.send(P('Успешно добавили ', emoji='ok') +
+                P('трансляцию', url=self.destination.getUrl(tr.messageId)))
     else:
       self._sendPostFail()
     return
@@ -740,12 +717,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         creator=self.chat,
       ))
       if tr is not None and tr.updatePost():
-        self.send([Piece('Успешно добавили '),
-                   Piece('трансляцию в сообщение',
-                         url=tr.destination.getUrl(tr.messageId))],
-                  emoji='ok')
+        self.send(P('Успешно добавили ', emoji='ok') +
+                  P('трансляцию в сообщение',
+                         url=tr.destination.getUrl(tr.messageId)))
       else:
-        self.send('Что-то пошло не так..', emoji='fail')
+        self.send(P('Что-то пошло не так..', emoji='fail'))
       self.resetTgState()
   
     self.terminateSubstate()
@@ -810,12 +786,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   # OTHER
   def send(self, message, emoji: str = None):
+    if isinstance(message, str):
+      message = P(message, emoji=emoji)
     send_message(
       tg=self.tg,
       chat_id=self.chat,
       text=message,
       disable_web_page_preview=True,
-      emoji=emoji,
     )
     
   def findTimesheet(self) -> Optional[Timesheet]:
@@ -903,11 +880,11 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
               f'\n\nВот как выглядит сообщение об ошибки: {e}'),
               emoji='warning')
     
-  def _makePost(self, predicat = lambda _: True) -> [Piece]:
+  def _makePost(self, predicat = lambda _: True) -> Optional[Pieces]:
     timesheet = self.findTimesheet()
     events = list(timesheet.events(predicat=predicat))
     if len(events) == 0:
-      self.send('Нельзя запостить пустое расписание', emoji='warning')
+      self.send('Расписание пустое :(', emoji='fail')
       return None
     return self.msgMaker.timesheetPost(
       events,

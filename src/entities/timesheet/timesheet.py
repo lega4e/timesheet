@@ -49,10 +49,6 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
     self.name: str = serialized['name']
     self.password: str = serialized.get('password')
     self.destinationSets = DestinationSettings(serialized=serialized.get('destination_sets'))
-    if serialized.get('head') is not None:
-      self.destinationSets.head = serialized.get('head')
-    if serialized.get('tail') is not None:
-      self.destinationSets.tail = serialized.get('tail')
     self.destinationSets.addListener(lambda s: self.notify())
     events = [self.eventRepo.find(id) for id in serialized['events']]
     self._events = {

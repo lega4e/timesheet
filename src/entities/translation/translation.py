@@ -15,7 +15,7 @@ from src.entities.event.event import Event
 from src.entities.event.event_fields_parser import datetime_today
 from src.domain.tg.api import send_message
 from src.entities.message_maker.message_maker import MessageMaker
-from src.entities.message_maker.piece import Piece, piece2string, piece2entities
+from src.domain.tg.piece import Pieces
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepo
 from src.utils.logger.logger import FLogger
@@ -122,15 +122,13 @@ class Translation(Notifier, LocatorStorage, Serializable):
     pieces = self._getMessage(timesheet)
     if pieces is None:
       return False
-    message, entities = piece2string(pieces), piece2entities(pieces)
     try:
       chat: TgChat = deepcopy(self.destination.chat)
       chat.messageId = self.messageId
       send_message(
         tg=self.tg,
         chat_id=chat,
-        text=message,
-        entities=entities,
+        text=pieces,
         disable_web_page_preview=True,
       )
       logger.info(f'{logger_title} success')
@@ -160,7 +158,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
         self.logger.error(traceback.format_exc())
         return False
     
-  def _getMessage(self, timesheet: Timesheet) -> [Piece]:
+  def _getMessage(self, timesheet: Timesheet) -> Optional[Pieces]:
     events = list(timesheet.events(predicat=self.eventPredicat))
     if len(events) == 0:
       self.emitDestroy('message is None')

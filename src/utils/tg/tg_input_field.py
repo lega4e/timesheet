@@ -6,7 +6,7 @@ from telebot import TeleBot
 from telebot.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from src.domain.tg.api import send_message
-from src.entities.message_maker.piece import Piece
+from src.domain.tg.piece import P, Pieces
 from src.utils.tg.tg_state import TgState
 from src.utils.tg.value_validators import Validator, ValidatorObject
 
@@ -24,10 +24,10 @@ class TgInputField(TgState):
     self,
     tg: TeleBot,
     chat,
-    greeting: Union[str, List[Piece]],
+    greeting: Union[str, Pieces],
     validator: Validator,
     on_field_entered: Callable,
-    terminate_message: str = None,
+    terminate_message: Union[str, Pieces] = None,
     buttons: List[List[InputFieldButton]] = None,
   ):
     self.tg = tg
@@ -35,28 +35,32 @@ class TgInputField(TgState):
     self.validator = validator
     self.onFieldEntered = on_field_entered
     self.terminateMessage = terminate_message
+    if isinstance(self.terminateMessage, str):
+      self.terminateMessage = P(self.terminateMessage)
+    if self.terminateMessage is not None:
+      self.terminateMessage.emoji = 'warning'
     self.buttons = buttons
+    if isinstance(greeting, str):
+      greeting = P(greeting)
+    greeting.emoji = 'edit'
     super().__init__(lambda: send_message(tg=self.tg,
                                           chat_id=self.chat,
                                           text=greeting,
-                                          reply_markup=self._makeMarkup(),
-                                          emoji='edit'))
+                                          reply_markup=self._makeMarkup()))
 
   # OVERRIDE METHODS
   def _onTerminate(self):
     if self.terminateMessage is not None:
       send_message(tg=self.tg,
                    chat_id=self.chat,
-                   text=self.terminateMessage,
-                   emoji='warning')
+                   text=self.terminateMessage)
       
   def _handleMessage(self, m: Message):
     answer = self.validator.validate(ValidatorObject(message=m))
     if not answer.success:
       send_message(tg=self.tg,
                    chat_id=self.chat,
-                   text=answer.error,
-                   emoji=answer.emoji)
+                   text=answer.error)
     else:
       self.onFieldEntered(answer.data)
     return True

@@ -71,4 +71,5 @@ def handle_{command.name}(user, _, __):
     self.tg.set_my_commands(commands=[
     BotCommand(command=com.name, description=com.short)
     for com in global_command_list
+    if com.addToMenu
   ])

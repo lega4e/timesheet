@@ -4,8 +4,8 @@ from typing import Callable, Optional
 from telebot import TeleBot
 from telebot.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 
+from src import TgChat
 from src.domain.tg.api import send_message
-from src.entities.message_maker.piece import piece2message
 from src.utils.tg.tg_state import TgState
 
 
@@ -90,15 +90,9 @@ class TgStateBranch(TgState):
   
   def _translateMessage(self):
     self.buttons = self.makeButtons()
-    text, entities = piece2message(self.makeMessage())
     kwargs = {
-      'chat_id': self.chat,
-      'text': text,
+      'chat_id': TgChat(type=TgChat.PUBLIC, chat_id=self.chat, message_id=self.messageId),
+      'text': self.makeMessage(),
       'reply_markup': self._makeMarkup(),
-      'entities': entities,
     }
-    if self.messageId is None:
-      self.messageId = send_message(tg=self.tg, **kwargs).message_id
-    else:
-      kwargs['message_id'] = self.messageId
-      self.tg.edit_message_text(**kwargs)
+    self.messageId = send_message(tg=self.tg, **kwargs).message_id

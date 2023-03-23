@@ -177,7 +177,7 @@ global_command_list = [
       'handleShowTimesheetList',
       'Отобразить все существующие расписания',
       'Отображает список названий всех существующих расписаний',
-      False,
+      True,
     ),
     (
       'clear_translations',

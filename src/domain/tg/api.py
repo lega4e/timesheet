@@ -1,28 +1,28 @@
-from typing import Union, List
+from typing import Union
 
 from telebot import TeleBot
 from telebot.types import Message
 
 from src.domain.locator import glob
 from src.domain.tg.tg_chat import TgChat
-from src.entities.message_maker.piece import Piece, piece2message
+from src.domain.tg.piece import Pieces, P
 
 
 def send_message(
   tg: TeleBot,
   chat_id: Union[TgChat, str, int],
-  text: Union[str, List[Piece]],
-  entities = None,
+  text: Union[str, Pieces],
   disable_web_page_preview = True,
   reply_markup = None,
   answer_callback_query_id: int = None,
   answer_callback_query_text: str = None,
-  emoji: str = None,
 ) -> Message:
-  
-  if entities is None:
-    text, entities = piece2message(text, emoji=emoji)
-    
+  if isinstance(text, str):
+    text = P(text)
+  emoji = text.emoji
+  pieces = text
+  text, entities = text.toMessage()
+
   kwargs = {
     'text': text,
     'entities' : entities,
@@ -49,9 +49,7 @@ def send_message(
     )
 
   if not isinstance(chat_id, TgChat) or chat_id.messageId is None:
-    glob().flogger().message(text,
+    glob().flogger().message(text=pieces,
                              chat_id=kwargs['chat_id'],
-                             entities=entities,
-                             emoji=emoji,
                              disable_web_page_preview=disable_web_page_preview)
   return m

@@ -4,7 +4,7 @@ from typing import List, Union
 from telebot import TeleBot
 
 from src.domain.locator import Locator, LocatorStorage
-from src.entities.message_maker.piece import Piece, piece2message
+from src.domain.tg.piece import Pieces, P
 
 
 class FLogger(LocatorStorage):
@@ -31,23 +31,24 @@ class FLogger(LocatorStorage):
     
   def message(
     self,
-    pieces: Union[str, List[Piece]],
+    text: Union[str, Pieces],
     chat_id = None,
-    entities = None,
-    emoji: str = None,
     **kwargs,
   ):
     if self.tg is None:
       return
+    if isinstance(text, str):
+      text = P(text)
+    text, entities = text.toMessage()
+    if text is None:
+      return
     for chat in self.chats:
       if chat == chat_id:
         continue
-      if entities is None:
-        message, ent = piece2message(pieces, emoji=emoji)
-      else:
-        message, ent = pieces, entities
-      if message is not None:
-        self.tg.send_message(chat_id=chat, text=message, entities=ent, **kwargs)
+      self.tg.send_message(chat_id=chat,
+                           text=text,
+                           entities=entities,
+                           **kwargs)
 
   @staticmethod
   def _usernameIdOrId(m):

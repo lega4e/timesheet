@@ -40,8 +40,7 @@ class TgInputForm(TgState):
     if self.terminate_message is not None:
       send_message(tg=self.tg,
                    chat_id=self.chat,
-                   text=self.terminate_message,
-                   emoji='warning')
+                   text=self.terminate_message)
 
   def _handleMessage(self, m: Message) -> bool:
     raise Exception('Сообщение всегда должно обрабатываться в TgInputField')

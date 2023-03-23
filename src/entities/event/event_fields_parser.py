@@ -1,10 +1,10 @@
 import datetime as dt
 import re
 
-from src.entities.message_maker.piece import Piece
+from src.domain.tg.piece import P, Pieces
 
 
-def parse_datetime(text: str) -> (dt.datetime, [Piece]):
+def parse_datetime(text: str) -> (dt.datetime, Pieces):
   formats = [
     '%d %B %Y %H:%M',
     '%d %B %Y %H:%M',
@@ -19,10 +19,10 @@ def parse_datetime(text: str) -> (dt.datetime, [Piece]):
     except:
       continue
   return (None,
-          [Piece('Не получилось считать дату время '
-                 ':( Введите время в одном из следующих форматов:\n'),
-           Piece('\n'.join([dt.datetime.now().strftime(fmt) for fmt in formats]),
-                 type='code')])
+          (P('Не получилось считать дату время '
+                 ':( Введите время в одном из следующих форматов:\n') +
+           P('\n'.join([dt.datetime.now().strftime(fmt) for fmt in formats]),
+                 types='code')))
 
 
 def correct_datetime(
