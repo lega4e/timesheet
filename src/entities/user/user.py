@@ -48,6 +48,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.translationRepo: TranslationRepo = self.locator.translationRepo()
     self.logger: FLogger = self.locator.flogger()
     self.tgState = None
+    self.sourceMessage = None
     if serialized is not None:
       self.deserialize(serialized)
     else:
@@ -110,8 +111,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         desc=data[0],
         start=data[1],
         finish=None,
-        place=Place(data[2]),
-        url=data[3],
+        place=Place(name=data[2], org=data[3]),
+        url=data[4],
+        creator=(self.sourceMessage.chat.username
+                 if self.sourceMessage.chat.username[0] == '@' else
+                 '@' + self.sourceMessage.chat.username)
+                if self.sourceMessage is not None else None
       ))
       timesheet = self.findTimesheet()
       if timesheet is None:
@@ -132,6 +137,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
               constructor.make_datetime_input_field(lambda _: True),
               constructor.make_place_input_field(lambda _: True,
                                                  self.findTimesheet().places),
+              constructor.make_org_input_field(lambda _: True,
+                                               self.findTimesheet().orgs),
               constructor.make_url_input_field(lambda _: True)]
     ))
 
@@ -157,6 +164,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
           event.start = value
         elif field_name == 'place':
           event.place.name = value
+        elif field_name == 'org':
+          event.place.org = value
         elif field_name == 'url':
           event.url = value
         self.send('Успех!', emoji='ok')
@@ -177,27 +186,34 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
              'Название',
              constructor.make_name_input_field(
                lambda value: on_event_field_entered(value, 'name')
-             )
+             ),
            ),
            BranchButton(
              'Начало',
              constructor.make_datetime_input_field(
                lambda value: on_event_field_entered(value, 'start')
-             )
-           )],
+             ),
+           ),
+           BranchButton(
+              'Ссыль',
+              constructor.make_url_input_field(
+                lambda value: on_event_field_entered(value, 'url')
+              ),
+          )],
           [BranchButton(
-             'Место/Орг.',
+             'Место',
              constructor.make_place_input_field(
                lambda value: on_event_field_entered(value, 'place'),
                places=self.findTimesheet().places,
              )
            ),
            BranchButton(
-             'Ссыль',
-             constructor.make_url_input_field(
-               lambda value: on_event_field_entered(value, 'url')
-             )
-           )],
+             'Организатор',
+             constructor.make_org_input_field(
+               lambda value: on_event_field_entered(value, 'org'),
+               orgs=self.findTimesheet().orgs,
+            )
+          )],
           [BranchButton('Завершить', action=complete, callback_answer='Завершено')],
         ],
         make_message=lambda: P(f'Название:   {event.desc}\n'
@@ -241,29 +257,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       validator=self._eventValidator(),
     ))
 
-  def handleAddPlace(self):
-    def on_place_enter(data):
-      timesheet = self.findTimesheet()
-      if data in timesheet.places:
-        self.send('Это место уже добавлено..', emoji='fail')
-      else:
-        timesheet.places.append(data)
-        self.send(f'Место "{data}" успешно добавлено', emoji='ok')
-        timesheet.notify(timesheet.EMIT_PLACES_CHANGED)
-      self.resetTgState()
-    
-    self.terminateSubstate()
-    if not self._checkTimesheet():
-      return
-    self.setTgState(TgInputField(
-      tg=self.tg,
-      chat=self.chat,
-      greeting='Введите название места или организации',
-      terminate_message='Добавление места прервано',
-      validator=TextValidator(),
-      on_field_entered=on_place_enter,
-    ))
-    
+  # places and organizators
   def handleSetPlaces(self):
     def on_place_enter(data: str):
       timesheet = self.findTimesheet()
@@ -284,6 +278,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       terminate_message='Установка мест прервана',
       validator=TextValidator(),
       on_field_entered=on_place_enter,
+      buttons=[[InputFieldButton('Очистить', [], 'Очищено')]],
     ))
 
   def handleShowPlaces(self):
@@ -296,24 +291,14 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     else:
       self.send(P('Существующие места:\n') +
                 P('\n'.join(timesheet.places), types='code') +
-                '\n\nДобавить новое место: /add_place' +
-                '\nУстановить места: /set_places')
+                '\n\nУстановить места: /set_places')
 
-  def handleRemovePlaces(self):
-    def on_place_enter(data):
-      remove = []
+  def handleSetOrgs(self):
+    def on_orgs_enter(data: str):
       timesheet = self.findTimesheet()
-      for place in timesheet.places:
-        if data.lower() in place.lower():
-          remove.append(place)
-          
-      if len(remove) == 0:
-        self.send('Ни одного такого места не найдено :(', emoji='fail')
-      else:
-        for place in remove:
-          timesheet.places.remove(place)
-        self.send(f'Следующие места удалены: {",".join(remove)}', emoji='ok')
-        timesheet.notify(timesheet.EMIT_PLACES_CHANGED)
+      timesheet.orgs = [line.strip() for line in data.split('\n')]
+      self.send(f'Организаторы успешно установлены', emoji='ok')
+      timesheet.notify(timesheet.EMIT_ORGS_CHANGED)
       self.resetTgState()
   
     self.terminateSubstate()
@@ -322,12 +307,26 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.setTgState(TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting='Введите название места или его часть; все места, '
-               'содержащие введённую строку, будут удалены',
-      terminate_message='Удаление места прервано',
+      greeting='Введите организаторов (одна строка — один организатор). '
+               'Все старые организаторы будут удалены и заменены новыми.\n\n'
+               'Посмотреть существующие организаторы: /show_orgs',
+      terminate_message='Установка организаторов прервана',
       validator=TextValidator(),
-      on_field_entered=on_place_enter,
+      on_field_entered=on_orgs_enter,
+      buttons=[[InputFieldButton('Очистить', [], 'Очищено')]],
     ))
+
+  def handleShowOrgs(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    timesheet = self.findTimesheet()
+    if len(timesheet.orgs) == 0:
+      self.send('А никого :(', emoji='fail')
+    else:
+      self.send(P('Существующие организаторы:\n') +
+                P('\n'.join(timesheet.orgs), types='code') +
+                '\n\nУстановить организаторов: /set_places')
 
 
   # timesheet commands
@@ -522,6 +521,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=TextValidator(),
       terminate_message='Ввод формата прерван',
+      buttons=[[InputFieldButton('Очистить', None, 'Очищено')]],
     ))
 
   def handleShowTimesheetList(self):
@@ -627,6 +627,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       on_field_entered=on_entered,
       validator=TextValidator(),
       terminate_message='Ввод формата прерван',
+      buttons=[[InputFieldButton('Очистить', None, 'Очищено')]],
     ))
 
   def handleSetDestinationBlackList(self):

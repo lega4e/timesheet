@@ -10,7 +10,8 @@ from src.utils.serialize import Serializable
 
 class Timesheet(Notifier, LocatorStorage, Serializable):
   EMIT_PLACES_CHANGED = 'EMIT_PLACES_CHANGED'
-  
+  EMIT_ORGS_CHANGED = 'EMIT_ORGS_CHANGED'
+
   def __init__(
     self,
     locator: Locator,
@@ -33,6 +34,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       self.destinationSets.addListener(lambda s: self.notify())
       self._events: {int: Callable} = dict()
       self.places = []
+      self.orgs = []
     
   def serialize(self) -> {str : Any}:
     return {
@@ -42,6 +44,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       'destination_sets': self.destinationSets.serialize(),
       'events': {id for id, callback in self._events.items()},
       'places': self.places,
+      'orgs': self.orgs,
     }
   
   def deserialize(self, serialized: {str: Any}):
@@ -57,6 +60,7 @@ class Timesheet(Notifier, LocatorStorage, Serializable):
       if event is not None
     }
     self.places = serialized.get('places') or []
+    self.orgs = serialized.get('orgs') or []
 
   def addEvent(self, id: int):
     self._events[id] = (self.eventRepo

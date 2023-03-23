@@ -15,7 +15,10 @@ class CommandsManager(LocatorStorage):
   # decorators
   def findUserDecorator(self, func):
     def wrapper(m, res=False):
-      func(self.userRepo.find(m.chat.id) if m.chat.id > 0 else None, m, res)
+      user = self.userRepo.find(m.chat.id) if m.chat.id > 0 else None
+      if user is not None:
+        user.sourceMessage = m
+      func(user, m, res)
     return wrapper
 
   def logCommandDecorator(self, func):

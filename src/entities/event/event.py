@@ -1,20 +1,14 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Union
 
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
 
 
 class Place:
-  PLOT = 'Плоt'
-  TOCHKA = '• точка •'
-  BOILER_HOUSE = 'Котельная'
-  TLL = 'ТЛЛ'
-  TODD = 'ТОДД'
-  DJERRIK = 'Джеррик'
-  
-  def __init__(self, name: str):
+  def __init__(self, name: str, org: str = None):
     self.name = name
+    self.org = org
     
     
 class Event(Notifier, Serializable):
@@ -25,7 +19,7 @@ class Event(Notifier, Serializable):
     place: Place = None,
     url: str = None,
     desc: str = None,
-    creator: int = None, # (user chat_id)
+    creator: Union[int, str] = None, # (user chat_id)
     id: id = None,
     serialized: {str: Any} = None,
   ):
@@ -56,7 +50,11 @@ class Event(Notifier, Serializable):
     self.start = serialized.get('start')
     self.finish = serialized.get('finish')
     self.place = serialized.get('place')
+    if 'org' not in self.place.__dict__.keys():
+      self.place.org = 'Точка'
     self.url = serialized.get('url')
     self.desc = serialized.get('desc')
     self.creator = serialized.get('creator')
+    if self.creator is None:
+      self.creator = '@lega4e'
     self.id = serialized.get('id')

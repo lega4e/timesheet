@@ -48,7 +48,7 @@ class DestinationSettings(Notifier, Serializable):
   @staticmethod
   def default():
     return DestinationSettings(
-      line_format='👉 %s %p %n',
+      line_format='👉 %s %p%( [by %o]%) • %n',
     )
   
   @staticmethod

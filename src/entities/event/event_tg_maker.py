@@ -37,13 +37,30 @@ class TgEventInputFieldsConstructor:
     return TgInputField(
       tg=self.tg,
       chat=self.chat,
-      greeting='Введите место или организатора мероприятия',
+      greeting='Введите место',
       on_field_entered=on_field_entered,
       validator=TextValidator(),
       buttons=list_to_layout(
         places,
         lambda place: InputFieldButton(title=place, data=place),
       ),
+    )
+
+  def make_org_input_field(
+    self,
+    on_field_entered: Callable,
+    orgs: List[str]
+  ) -> TgInputField:
+    return TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите организатора мероприятия',
+      on_field_entered=on_field_entered,
+      validator=TextValidator(),
+      buttons=list_to_layout(
+        orgs,
+        lambda place: InputFieldButton(title=place, data=place),
+      ) + [[InputFieldButton(title='Совпадает', data=None)]],
     )
   
   def make_url_input_field(self, on_field_entered: Callable) -> TgInputField:

@@ -144,7 +144,12 @@ class MessageMaker(LocatorStorage):
              'Отсутствует'))
 
 
-def get_event_line(fmt: str, event: Event, url: str = None) -> Pieces:
+def get_event_line(
+  fmt: str,
+  event: Event,
+  url: str = None,
+  nested: bool = False,
+) -> Optional[Pieces]:
   result = P()
   p, i = 0, 0
   while True:
@@ -159,10 +164,27 @@ def get_event_line(fmt: str, event: Event, url: str = None) -> Pieces:
       result += event.place.name
     elif fmt[i+1] == 's':
       result += event.start.strftime("%H:%M")
-    elif fmt[i + 1] == 'n':
+    elif fmt[i+1] == 'n':
       result += P(event.desc, url=url)
     elif fmt[i+1] == 'i':
       result += str(event.id)
+    elif fmt[i+1] == 'c':
+      if (event.creator is None or
+          event.url is not None or
+          not isinstance(event.creator, str)) and nested:
+        return None
+      result += str(event.creator)
+    elif fmt[i+1] == 'o':
+      if (event.place.org is None or event.place.org == event.place.name) and nested:
+        return None
+      result += event.place.org
+    elif fmt[i+1] == '(':
+      nested_result = get_event_line(fmt[i+2:], event, url, True)
+      if nested_result is not None:
+        result += nested_result
+      i = fmt.find('%)', p)
+    elif fmt[i+1] == ')' and nested:
+      return result
     else:
       result += fmt[i:i+2]
     p = i+2
