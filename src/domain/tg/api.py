@@ -19,7 +19,6 @@ def send_message(
 ) -> Message:
   if isinstance(text, str):
     text = P(text)
-  emoji = text.emoji
   pieces = text
   text, entities = text.toMessage()
 

@@ -98,7 +98,7 @@ class PieceValidator(Validator):
     
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
     o.data = (None if self.letNone and o.message.text.lower() in ['none', 'нет']
-              else P(o.message.text))
+              else Pieces.fromMessage(o.message.text, o.message.entities))
     return o
 
 

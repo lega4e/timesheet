@@ -23,6 +23,19 @@ class _Piece:
                   [*(types or []), type, None if url is None else 'text_link']
                   if val is not None}
     
+  def add(self, type: str = None, url: str = None, user: str = None):
+    if url is not None:
+      self.types.add('text_link')
+      self.url = url
+    if type is not None:
+      self.types.add(type)
+    if user is not None:
+      self.user = user
+      
+  def __repr__(self):
+    return f'"{self.text}" ({self.types})'
+
+ 
 class Pieces:
   def __init__(self, pieces: List[_Piece] = None, emoji: str = None):
     self.pieces = pieces or []
@@ -57,7 +70,7 @@ class Pieces:
       if (len(entities) != 0 and
           entities[-1].offset + entities[-1].length == pos and
           (type != 'text_link' or entities[-1].url == piece.url)):
-        entities[-1].offset += text_length
+        entities[-1].length += text_length
       else:
         entities.append(MessageEntity(
           type=type,
@@ -93,6 +106,59 @@ class Pieces:
       self.pieces += other.pieces
     self.emoji = other.emoji or self.emoji
     return self
+  
+  def pieceByPos(self, pos) -> (int, int):
+    p = 0
+    for piece in self.pieces:
+      length = len(piece.text)
+      if p <= pos < p + length:
+        return self.pieces.index(piece), pos - p
+      p += length
+    return -1, -1
+  
+  @staticmethod
+  def fromMessage(text: str, entities: [MessageEntity]):
+    entities = deepcopy(entities)
+    p = 0
+    for c in text:
+      if len(bytes(c, encoding='utf-8')) < 4:
+        p += 1
+        continue
+      for e in entities:
+        if e.offset > p:
+          e.offset -= 1
+        if e.offset <= p < e.offset + e.length:
+          e.length -= 1
+      p += 1
+    p = P(text)
+    if entities is None:
+      return p
+    for entity in entities:
+      first, pfirst = p.pieceByPos(entity.offset)
+      last, plast = p.pieceByPos(entity.offset + entity.length - 1)
+      new1, new2 = None, None
+      for i in range(first, last+1):
+        if i == first:
+          new1 = deepcopy(p.pieces[first])
+          new1.text = new1.text[pfirst:-1 if first != last else plast+1]
+          new1.add(type=entity.type, url=entity.url, user=entity.user)
+        elif i == last:
+          new2 = deepcopy(p.pieces[last])
+          new2.text = new2.text[:plast+1]
+          new2.add(type=entity.type, url=entity.url, user=entity.user)
+        else:
+          p.pieces[i].add(type=entity.type, url=entity.url, user=entity.user)
+      ffirst = deepcopy(p.pieces[first])
+      ffirst.text = ffirst.text[:pfirst]
+      llast = deepcopy(p.pieces[last])
+      llast.text = llast.text[plast+1:]
+      p.pieces = [piece for piece in (p.pieces[:first] +
+                                      [ffirst, new1] +
+                                      p.pieces[first+1:last] +
+                                      [new2, llast] +
+                                      p.pieces[last+1:])
+                  if piece is not None]
+    return p
 
 
 def P(
