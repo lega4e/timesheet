@@ -737,6 +737,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     ))
     
   def handleShowTranslations(self):
+    self.terminateSubstate()
     if not self._checkTimesheet():
       return
     timesheet_id = self.findTimesheet().id

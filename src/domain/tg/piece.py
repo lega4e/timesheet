@@ -58,6 +58,25 @@ class Pieces:
     if emoji is not None:
       self.pieces = list(self.pieces[1:])
     return entities
+  
+  def __getitem__(self, key):
+    if not isinstance(key, slice):
+      raise Exception('Pieces.__getitem__ only with slice')
+    length = len(self.toString())
+    if key.start is None:
+      first, pfirst = 0, 0
+    else:
+      first, pfirst = self.pieceByPos((key.start + length) % length)
+    if key.stop is None:
+      last, plast = len(self.pieces) - 1, len(self.pieces[-1].text) - 1
+    else:
+      last, plast = self.pieceByPos(length - 1 if key.stop >= length else key.stop - 1)
+    p = deepcopy(self)
+    p.pieces = p.pieces[first:last+1]
+    p.pieces[0].text = p.pieces[0].text[pfirst:None if last != first else plast+1]
+    if last != first:
+      p.pieces[-1].text = p.pieces[-1].text[:plast+1]
+    return p
     
   def getEntitiesWithType(self, type: str) -> List[MessageEntity]:
     pos = 0

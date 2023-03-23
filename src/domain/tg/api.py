@@ -20,6 +20,19 @@ def send_message(
   if isinstance(text, str):
     text = P(text)
   pieces = text
+  if len(text.toString()) > 3900:
+    m = None
+    for i in range(0, len(text.toString()), 3900):
+      m = send_message(tg,
+                       chat_id,
+                       text[i:i+3900],
+                       disable_web_page_preview=disable_web_page_preview,
+                       reply_markup=reply_markup,
+                       answer_callback_query_id=answer_callback_query_id,
+                       answer_callback_query_text=answer_callback_query_text)
+      answer_callback_query_id = None
+      answer_callback_query_text = None
+    return m
   text, entities = text.toMessage()
 
   kwargs = {
