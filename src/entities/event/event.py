@@ -51,10 +51,10 @@ class Event(Notifier, Serializable):
     self.finish = serialized.get('finish')
     self.place = serialized.get('place')
     if 'org' not in self.place.__dict__.keys():
-      self.place.org = 'Точка'
+      self.place.org = None
     self.url = serialized.get('url')
     self.desc = serialized.get('desc')
     self.creator = serialized.get('creator')
     if self.creator is None:
-      self.creator = '@lega4e'
+      self.creator = None
     self.id = serialized.get('id')

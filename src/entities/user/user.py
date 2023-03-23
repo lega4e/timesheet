@@ -1,3 +1,7 @@
+import datetime as dt
+
+from copy import deepcopy
+
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 from typing import Optional, Any
@@ -141,6 +145,41 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
                                                self.findTimesheet().orgs),
               constructor.make_url_input_field(lambda _: True)]
     ))
+    
+  def handleReplay(self):
+    def on_field_entered(data):
+      start = deepcopy(data.start)
+      while True:
+        start += dt.timedelta(weeks=1)
+        if start >= datetime_today():
+          break
+      event = self.eventRepo.putWithId(lambda id: Event(
+        id=id,
+        desc=data.desc,
+        start=start,
+        finish=None,
+        place=deepcopy(data.place),
+        url=None,
+        creator=data.creator,
+      ))
+      self.findTimesheet().addEvent(event.id)
+      self.send(P('Мероприятие успешно добавлено! Проверьте все поля (',emoji='ok') +
+                P('и добавьте URL!', types=['underline', 'bold']) + P(')'))
+      self.resetTgState()
+      self._editEvent(event)
+      
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+    
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ID мероприятия или слова, содержащиеся в названии',
+      terminate_message='Прерван повтор мероприятия',
+      on_field_entered=on_field_entered,
+      validator=self._eventValidator(),
+    ))
 
   def handleShowEvents(self):
     self.terminateSubstate()
@@ -154,77 +193,6 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       self.send('\n'.join([MessageMaker.eventPreview(e) for e in events]))
 
   def handleEditEvent(self):
-    def on_field_entered(event):
-      state = None
-      
-      def on_event_field_entered(value, field_name: str):
-        if field_name == 'name':
-          event.desc = value
-        elif field_name == 'start':
-          event.start = value
-        elif field_name == 'place':
-          event.place.name = value
-        elif field_name == 'org':
-          event.place.org = value
-        elif field_name == 'url':
-          event.url = value
-        self.send('Успех!', emoji='ok')
-        state.updateMessage()
-        state.resetTgState()
-        event.notify()
-
-      def complete():
-        self.send('Редактирование мероприятия завершено', emoji='ok')
-        self.resetTgState()
-      
-      constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
-      state = TgStateBranch(
-        tg=self.tg,
-        chat=self.chat,
-        make_buttons=lambda: [
-          [BranchButton(
-             'Название',
-             constructor.make_name_input_field(
-               lambda value: on_event_field_entered(value, 'name')
-             ),
-           ),
-           BranchButton(
-             'Начало',
-             constructor.make_datetime_input_field(
-               lambda value: on_event_field_entered(value, 'start')
-             ),
-           ),
-           BranchButton(
-              'Ссыль',
-              constructor.make_url_input_field(
-                lambda value: on_event_field_entered(value, 'url')
-              ),
-          )],
-          [BranchButton(
-             'Место',
-             constructor.make_place_input_field(
-               lambda value: on_event_field_entered(value, 'place'),
-               places=self.findTimesheet().places,
-             )
-           ),
-           BranchButton(
-             'Организатор',
-             constructor.make_org_input_field(
-               lambda value: on_event_field_entered(value, 'org'),
-               orgs=self.findTimesheet().orgs,
-            )
-          )],
-          [BranchButton('Завершить', action=complete, callback_answer='Завершено')],
-        ],
-        make_message=lambda: P(f'Название:   {event.desc}\n'
-                               f'Начало:     {event.start.strftime("%x %X")}\n'
-                               f'Место/Орг.: {event.place.name}\n'
-                               f'URL:        {event.url}',
-                               types='code'),
-        on_terminate=lambda: self.send('Редактирование мероприятия заверщено', emoji='ok')
-      )
-      self.setTgState(state, terminate=False)
-
     self.terminateSubstate()
     if not self._checkTimesheet():
       return
@@ -233,7 +201,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       chat=self.chat,
       greeting='Введите ID мероприятия или слова, содержащиеся в названии',
       terminate_message='Прервано редактирование мероприятия',
-      on_field_entered=on_field_entered,
+      on_field_entered=self._editEvent,
       validator=self._eventValidator(),
     ))
 
@@ -897,7 +865,80 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         self.destination.sets
       ),
     )
-  
+
+  def _editEvent(self, event: Event):
+    state = None
+
+    def on_event_field_entered(value, field_name: str):
+      if field_name == 'name':
+        event.desc = value
+      elif field_name == 'start':
+        event.start = value
+      elif field_name == 'place':
+        event.place.name = value
+      elif field_name == 'org':
+        event.place.org = value
+      elif field_name == 'url':
+        event.url = value
+      self.send('Успех!', emoji='ok')
+      state.updateMessage()
+      state.resetTgState()
+      event.notify()
+
+    def complete():
+      self.send('Редактирование мероприятия завершено', emoji='ok')
+      self.resetTgState()
+
+    constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
+    state = TgStateBranch(
+      tg=self.tg,
+      chat=self.chat,
+      make_buttons=lambda: [
+        [BranchButton(
+          'Название',
+          constructor.make_name_input_field(
+            lambda value: on_event_field_entered(value, 'name')
+          ),
+        ),
+          BranchButton(
+            'Начало',
+            constructor.make_datetime_input_field(
+              lambda value: on_event_field_entered(value, 'start')
+            ),
+          ),
+          BranchButton(
+            'Ссыль',
+            constructor.make_url_input_field(
+              lambda value: on_event_field_entered(value, 'url')
+            ),
+          )],
+        [BranchButton(
+          'Место',
+          constructor.make_place_input_field(
+            lambda value: on_event_field_entered(value, 'place'),
+            places=self.findTimesheet().places,
+          )
+        ),
+          BranchButton(
+            'Организатор',
+            constructor.make_org_input_field(
+              lambda value: on_event_field_entered(value, 'org'),
+              orgs=self.findTimesheet().orgs,
+            )
+          )],
+        [BranchButton('Завершить', action=complete, callback_answer='Завершено')],
+      ],
+      make_message=lambda: P(f'Название:    {event.desc}\n' +
+                             f'Начало:      {event.start.strftime("%x %X")}\n' +
+                             f'Место:       {event.place.name}\n' +
+                             (f'Организатор: {event.place.org}\n'
+                              if event.place.org is not None else '') +
+                             f'URL:         {event.url}',
+                             types='code'),
+      on_terminate=lambda: self.send('Редактирование мероприятия заверщено', emoji='ok')
+    )
+    self.setTgState(state, terminate=False)
+
 
 def default_event_predicat(event: Event) -> bool:
   return event.start >= datetime_today()
