@@ -872,8 +872,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
           ]),
           buttons=[[InputFieldButton('Каждый день', dt.timedelta(days=1)),
                     InputFieldButton('Каждую неделю', dt.timedelta(weeks=1))],
-                   [InputFieldButton('Каждую вторую неделю', dt.timedelta(weeks=2)),
-                    InputFieldButton('Каждую минуту', dt.timedelta(minutes=1))]],
+                   [InputFieldButton('Каждую вторую неделю', dt.timedelta(weeks=2))]],
         ),
       ]
     ))
