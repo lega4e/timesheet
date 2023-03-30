@@ -30,13 +30,17 @@ class ActionExecutor(LocatorStorage):
       self._tgAutoForward(cast(ActionTgAutoForward, action))
       
   def _tgAutoForward(self, action: ActionTgAutoForward):
+    logger = self.locator.flogger()
     timesheet: Timesheet = self.timesheetRepo.find(action.timesheetId)
     destination: Destination = self.destinationRepo.findByChat(action.chat.chatId)
     if timesheet is None:
+      logger.info(f'auto post to {action.chat.chatId} no timesheet')
       return
     if action.translationId is not None:
       tr = self.translationRepo.find(action.translationId)
       if tr is not None:
+        self.tg.unpin_chat_message(chat_id=tr.destination.chat.chatId,
+                                   message_id=tr.messageId)
         tr.emitDestroy('remove by autoforward')
       action.translationId = None
     tr = self.translationRepo.putWithId(lambda id: Translation(
@@ -46,6 +50,12 @@ class ActionExecutor(LocatorStorage):
       timesheet_id=timesheet.id,
       creator=action.creator,
     ))
+    try:
+      self.tg.pin_chat_message(chat_id=tr.destination.chat.chatId,
+                               message_id=tr.messageId)
+    except Exception as e:
+      logger.error(f'auto post to {action.chat.chatId} exception (pin message): {e}')
     if tr is not None:
       action.translationId = tr.id
+    logger.info(f'auto post to {action.chat.chatId} success')
     action.notify()

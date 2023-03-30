@@ -68,6 +68,10 @@ def make_lira_repeater():
   )
   return repeater
 
+def pin_message():
+  result = tg.unpin_chat_message(chat_id=5385758215, message_id=300)
+  print(result)
+
 
 def make_autoupdate():
   def update_all_translations():
