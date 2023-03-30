@@ -19,13 +19,12 @@ class TranslationRepo(LiraRepo):
     return value.serialize()
 
   def valueFromSerialized(self, serialized: {str: Any}) -> T:
-    translation = Translation(self.locator, serialized=serialized)
-    translation.addListener(self._onTranslationEmitDestroy,
-                            event=Translation.EMIT_DESTROY)
-    return translation
+    return Translation(self.locator, serialized=serialized)
 
   def addValueListener(self, value: T, listener: Callable):
     value.addListener(listener)
+    value.addListener(self._onTranslationEmitDestroy,
+                      event=Translation.EMIT_DESTROY)
 
   def keyByValue(self, value: T) -> Key:
     return value.id
@@ -35,8 +34,6 @@ class TranslationRepo(LiraRepo):
     
   def putWithId(self, builder: Callable) -> Optional[T]:
     value = builder(self.newId())
-    value.addListener(self._onTranslationEmitDestroy,
-                      event=Translation.EMIT_DESTROY)
     if not value.connect():
       return None
     super().put(value)

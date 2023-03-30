@@ -267,5 +267,29 @@ global_command_list = [
       'Запуск бота',
       False,
     ),
+    (
+      'make_autopost',
+      '/make_autopost',
+      'handleMakeAutopost',
+      '',
+      '',
+      False,
+    ),
+    (
+      'show_autoposts',
+      '/show_autoposts',
+      'handleShowAutoposts',
+      '',
+      '',
+      False,
+    ),
+    (
+      'remove_autopost',
+      '/remove_autopost',
+      'handleRemoveAutopost',
+      '',
+      '',
+      False,
+    ),
   ]
 ]

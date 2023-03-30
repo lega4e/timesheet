@@ -8,6 +8,7 @@ from typing import Optional, Any
 
 from src.domain.locator import LocatorStorage, Locator
 from src.domain.post_parser import parse_post
+from src.entities.action.action import Action, ActionTgAutoForward
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Place, Event
@@ -24,6 +25,7 @@ from src.entities.translation.translation import Translation
 from src.entities.translation.translation_repository import TranslationRepo
 from src.utils.logger.logger import FLogger
 from src.utils.notifier import Notifier
+from src.utils.repeater import Period
 from src.utils.serialize import Serializable
 from src.utils.tg.tg_input_field import TgInputField, InputFieldButton
 from src.utils.tg.tg_input_form import TgInputForm
@@ -52,6 +54,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.timesheetRepo: TimesheetRepo = self.locator.timesheetRepo()
     self.translationRepo: TranslationRepo = self.locator.translationRepo()
     self.logger: FLogger = self.locator.flogger()
+    self.actionRepo = self.locator.actionRepo()
     self.tgState = None
     self.sourceMessage = None
     if serialized is not None:
@@ -178,7 +181,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   def handleHelp(self):
     self.terminateSubstate()
     self.send(message=self.msgMaker.help())
-
+    
 
   # event commands
   def handleMakeEvent(self):
@@ -828,6 +831,81 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.send('Успешно удалили все трансляции для выбранного канала', emoji='ok')
 
 
+  # auto post commands
+  def handleMakeAutopost(self):
+    self.terminateSubstate()
+    if not self._checkTimesheet() or not self._checkDestination():
+      return
+  
+    def on_form_entered(data):
+      self.actionRepo.put(ActionTgAutoForward(
+        id=self.actionRepo.newId(),
+        period=Period(point=correct_datetime(data[0]), delta=data[1]),
+        chat=self.destination.chat,
+        timesheet_id=self.timesheetId,
+        creator=self.chat,
+      ))
+      self.send('Автопост успешно добавлен!', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputForm(
+      tg=self.tg,
+      chat=self.chat,
+      terminate_message='Создание автопоста прервано',
+      on_form_entered=on_form_entered,
+      fields=[
+        TgInputField(
+          tg=self.tg,
+          chat=self.chat,
+          greeting='Введите дату и время, с которой начать автопост',
+          on_field_entered=lambda _: True,
+          validator=DatetimeValidator(),
+        ),
+        TgInputField(
+          tg=self.tg,
+          chat=self.chat,
+          greeting='Выберете или введите в часах период, с котроым делать автопост',
+          on_field_entered=lambda _: True,
+          validator=ChainValidator([
+            IntValidator(),
+            FunctionValidator(lambda o: dt.timedelta(hours=o.data)),
+          ]),
+          buttons=[[InputFieldButton('Каждый день', dt.timedelta(days=1)),
+                    InputFieldButton('Каждую неделю', dt.timedelta(weeks=1))],
+                   [InputFieldButton('Каждую вторую неделю', dt.timedelta(weeks=2)),
+                    InputFieldButton('Каждую минуту', dt.timedelta(minutes=1))]],
+        ),
+      ]
+    ))
+
+  def handleShowAutoposts(self):
+    autoposts = self.actionRepo.findAll(lambda a: a.type == Action.TG_AUTO_FORWARD)
+    if len(autoposts) == 0:
+      self.send('А никого :(', emoji='fail')
+      return
+    self.send('Список автопостов:'
+              '\n'.join([f'{Emoji.POINT_RIGHT} #{autopost.id} {autopost.chat.chatId} '
+                         f'{autopost.period.point.strftime("%x %R")} every '
+                         f'{int(autopost.period.delta.total_seconds() / 3600 * 1000) / 1000} hours'
+                         for autopost in autoposts]))
+    
+  def handleRemoveAutopost(self):
+    self.terminateSubstate()
+  
+    def on_field_entered(data):
+      self.actionRepo.remove(key=data.id)
+      self.send('Автопост успешно удалён', emoji='ok')
+      self.resetTgState()
+  
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting='Введите ID автопоста',
+      terminate_message='Прервано удаление мероприятия',
+      on_field_entered=on_field_entered,
+      validator=self._autopostValidator(),
+    ))
+
   # OTHER
   def send(self, message, emoji: str = None):
     if isinstance(message, str):
@@ -914,6 +992,19 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       ]).validate(o)
     
     return FunctionValidator(validate)
+  
+  def _autopostValidator(self):
+    def find_autopost_validator(o: ValidatorObject) -> ValidatorObject:
+      autopost = self.actionRepo.find(o.data)
+      if autopost is None:
+        o.success = False
+        o.error = P('Не получилось найти автопост с таким ID.'
+                    'См. /show_autoposts', emoji='fail')
+      else:
+        o.data = autopost
+      return o
+    
+    return ChainValidator([IntValidator(), FunctionValidator(find_autopost_validator)])
 
   def _sendPostFail(self, e = None):
     self.send(f'Произошла ошибка при попытке сделать пост :(\n\n'

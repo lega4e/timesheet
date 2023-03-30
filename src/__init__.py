@@ -1,3 +1,4 @@
+import datetime as dt
 import locale
 
 from src.domain.locator import glob
@@ -5,6 +6,7 @@ from src.domain.tg.api import send_message
 from src.domain.tg.tg_chat import TgChat
 from src.entities.event.event import Event
 from src.entities.message_maker.message_maker import get_event_line
+from src.utils.repeater import Repeater, Period, PeriodRepeater
 
 locator = glob()
 tg = locator.tg()
@@ -58,10 +60,37 @@ def send_to_topic():
                                                        chat_id=-1001620091980,
                                                        topic_id=21867,
                                                        message_id=24180))
+  
+def make_lira_repeater():
+  repeater = PeriodRepeater(
+    action=lambda: print('TICK'),
+    period=Period(delta=dt.timedelta(seconds=10))
+  )
+  return repeater
+
+
+def make_autoupdate():
+  def update_all_translations():
+    for tr in locator.translationRepo().findAll(lambda _: True):
+      tr.updatePost()
+  
+  update_all_translations()
+  return PeriodRepeater(
+    update_all_translations,
+    period=Period(point=dt.datetime(year=2023, month=1, day=1, hour=2),
+                  delta=dt.timedelta(days=1)),
+    check_period=5,
+  )
+
 
 def main():
   set_locale()
   locator.commandsManager().addHandlers()
   locator.commandsManager().setMenuCommands()
+  locator.actionRepo().startActions()
   log.info('Bot Started!')
+  autoupdate = make_autoupdate()
+  autoupdate.start()
   tg.infinity_polling(none_stop=True, interval=0)
+  locator.actionRepo().stopActions()
+  autoupdate.stop()

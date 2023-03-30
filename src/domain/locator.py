@@ -3,6 +3,8 @@ import os
 
 class Locator:
   def __init__(self):
+    self._actionExecutor = None
+    self._actionRepo = None
     self._commandsManager = None
     self._config = None
     self._destinationRepo = None
@@ -16,6 +18,18 @@ class Locator:
     self._timesheetRepository = None
     self._translationRepo = None
     self._userRepository = None
+
+  def actionExecutor(self):
+    if self._actionExecutor is None:
+      from src.entities.action.executor import ActionExecutor
+      self._actionExecutor = ActionExecutor(self)
+    return self._actionExecutor
+  
+  def actionRepo(self):
+    if self._actionRepo is None:
+      from src.entities.action.action_repo import ActionRepo
+      self._actionRepo = ActionRepo(self)
+    return self._actionRepo
 
   def commandsManager(self):
     if self._commandsManager is None:
