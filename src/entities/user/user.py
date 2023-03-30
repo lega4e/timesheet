@@ -7,6 +7,7 @@ from telebot.types import CallbackQuery
 from typing import Optional, Any
 
 from src.domain.locator import LocatorStorage, Locator
+from src.domain.post_parser import parse_post
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Place, Event
@@ -71,7 +72,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     self.send('Непонятно.. что ты хочешь..? напиши /help', emoji='fail')
     
   def _handleMessageBefore(self, m: Message) -> bool:
-    if m.text[0] == '/':
+    if m.forward_from_chat is not None or m.forward_from is not None:
+      self.handleForward(m)
+      return True
+    if m.text is not None and m.text[0] == '/':
       self.terminateSubstate()
       self.send('Неизвестная команда..', emoji='fail')
       return True
@@ -94,6 +98,79 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
 
   # HANDLERS FOR TELEGRAM
+  def handleForward(self, m: Message):
+    answer = parse_post(m)
+    if answer.datetime is None and answer.url is None and answer.name is None:
+      self.send('Ни одно поле не получилось извлечь :( какой-то дурацкий пост', emoji='fail')
+      return
+    fields = [field for field in [
+      ('название', answer.name),
+      ('ссылка', answer.url),
+      ('дата и время', None if answer.datetime is None else answer.datetime.strftime('%x %R')),
+    ] if field[1] is not None]
+    self.send(P('Из форварда успешно получены поля:\n') + reduce_list(
+      lambda a, b: a + b,
+      insert_between(
+        [P(f'{Emoji.STRAWBERRY} {title} (') + P(f'{value}', types=['code']) + P(')')
+         for title, value in fields],
+        P('\n')
+      ),
+      P(),
+    ))
+    self.send('Вы сможете подредактировать их после окончательного создания мероприятия, '
+              'а сейчас введите остальные поля', emoji='edit')
+
+    def on_form_entered(data):
+      counter = 0
+      if answer.name is None:
+        answer.name = data[counter]
+        counter += 1
+      if answer.datetime is None:
+        answer.datetime = data[counter]
+        counter += 1
+      answer.place = Place(data[counter], data[counter+1])
+      counter += 2
+      if answer.url is None:
+        answer.url = data[counter]
+        counter += 1
+        
+      event = Event(
+        id=self.eventRepo.newId(),
+        desc=answer.name,
+        start=answer.datetime,
+        finish=None,
+        place=answer.place,
+        url=answer.url,
+        creator=self._getCreator(),
+      )
+      self.eventRepo.put(event)
+      self.findTimesheet().addEvent(event.id)
+      self.send(P('Мероприятие успешно добавлено! Проверьте все поля', emoji='ok'))
+      self.resetTgState()
+      self._editEvent(event)
+
+    self.terminateSubstate()
+    if not self._checkTimesheet():
+      return
+
+    constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
+    self.setTgState(TgInputForm(
+      tg=self.tg,
+      chat=self.chat,
+      terminate_message='Создание мероприятия преравно',
+      on_form_entered=on_form_entered,
+      fields=[field for field in [
+        constructor.makeNameInputField(lambda _: True)
+          if answer.name is None else None,
+        constructor.makeDatetimeInputField(lambda _: True)
+          if answer.datetime is None else None,
+        constructor.makePlaceInputField(lambda _: True, self.findTimesheet().places),
+        constructor.makeOrgInputField(lambda _: True, self.findTimesheet().orgs),
+        constructor.makeUrlInputField(lambda _: True)
+          if answer.url is None else None]
+      if field is not None]
+    ))
+
   def handleStart(self):
     self.terminateSubstate()
     self.send('Приветствуют тебя, мастер, заведующий расписанием!')
@@ -117,10 +194,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         finish=None,
         place=Place(name=data[2], org=data[3]),
         url=data[4],
-        creator=(self.sourceMessage.chat.username
-                 if self.sourceMessage.chat.username[0] == '@' else
-                 '@' + self.sourceMessage.chat.username)
-                if self.sourceMessage is not None else None
+        creator=self._getCreator(),
       ))
       timesheet = self.findTimesheet()
       if timesheet is None:
@@ -137,13 +211,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       chat=self.chat,
       terminate_message='Создание мероприятия преравно',
       on_form_entered=on_form_entered,
-      fields=[constructor.make_name_input_field(lambda _: True),
-              constructor.make_datetime_input_field(lambda _: True),
-              constructor.make_place_input_field(lambda _: True,
-                                                 self.findTimesheet().places),
-              constructor.make_org_input_field(lambda _: True,
-                                               self.findTimesheet().orgs),
-              constructor.make_url_input_field(lambda _: True)]
+      fields=[constructor.makeNameInputField(lambda _: True),
+              constructor.makeDatetimeInputField(lambda _: True),
+              constructor.makePlaceInputField(lambda _: True,
+                                              self.findTimesheet().places),
+              constructor.makeOrgInputField(lambda _: True,
+                                            self.findTimesheet().orgs),
+              constructor.makeUrlInputField(lambda _: True)]
     ))
     
   def handleReplay(self):
@@ -865,6 +939,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         self.destination.sets
       ),
     )
+  
+  def _getCreator(self):
+    return ((self.sourceMessage.chat.username
+               if self.sourceMessage.chat.username[0] == '@' else
+               '@' + self.sourceMessage.chat.username)
+            if self.sourceMessage is not None else None)
 
   def _editEvent(self, event: Event):
     state = None
@@ -896,32 +976,32 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       make_buttons=lambda: [
         [BranchButton(
           'Название',
-          constructor.make_name_input_field(
+          constructor.makeNameInputField(
             lambda value: on_event_field_entered(value, 'name')
           ),
         ),
           BranchButton(
             'Начало',
-            constructor.make_datetime_input_field(
+            constructor.makeDatetimeInputField(
               lambda value: on_event_field_entered(value, 'start')
             ),
           ),
           BranchButton(
             'Ссыль',
-            constructor.make_url_input_field(
+            constructor.makeUrlInputField(
               lambda value: on_event_field_entered(value, 'url')
             ),
           )],
         [BranchButton(
           'Место',
-          constructor.make_place_input_field(
+          constructor.makePlaceInputField(
             lambda value: on_event_field_entered(value, 'place'),
             places=self.findTimesheet().places,
           )
         ),
           BranchButton(
             'Организатор',
-            constructor.make_org_input_field(
+            constructor.makeOrgInputField(
               lambda value: on_event_field_entered(value, 'org'),
               orgs=self.findTimesheet().orgs,
             )

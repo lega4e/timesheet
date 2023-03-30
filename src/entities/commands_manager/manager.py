@@ -54,10 +54,10 @@ def handle_{command.name}(user, _, __):
       ''')
       
   def addMessageHandlers(self):
-    @self.tg.message_handler(content_types=['text']) #, 'photo', 'video', 'audio'])
+    @self.tg.message_handler(content_types=['text', 'photo', 'video']) # 'audio'])
     @self.logMessageDecorator
     @self.findUserDecorator
-    def handle_message(user, m, __=False):
+    def handle_message(user, m: Message, __=False):
       if user is not None:
         user.handleMessage(m)
       

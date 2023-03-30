@@ -11,7 +11,7 @@ class TgEventInputFieldsConstructor:
     self.tg = tg
     self.chat = chat
     
-  def make_name_input_field(self, on_field_entered: Callable) -> TgInputField:
+  def makeNameInputField(self, on_field_entered: Callable) -> TgInputField:
     return TgInputField(
       tg=self.tg,
       chat=self.chat,
@@ -20,7 +20,7 @@ class TgEventInputFieldsConstructor:
       validator=TextValidator(),
     )
   
-  def make_datetime_input_field(self, on_field_entered: Callable) -> TgInputField:
+  def makeDatetimeInputField(self, on_field_entered: Callable) -> TgInputField:
     return TgInputField(
       tg=self.tg,
       chat=self.chat,
@@ -29,7 +29,7 @@ class TgEventInputFieldsConstructor:
       validator=ChainValidator([DatetimeValidator(), CorrectDatetimeValidator()]),
     )
 
-  def make_place_input_field(
+  def makePlaceInputField(
     self,
     on_field_entered: Callable,
     places: List[str]
@@ -46,7 +46,7 @@ class TgEventInputFieldsConstructor:
       ),
     )
 
-  def make_org_input_field(
+  def makeOrgInputField(
     self,
     on_field_entered: Callable,
     orgs: List[str]
@@ -63,7 +63,7 @@ class TgEventInputFieldsConstructor:
       ) + [[InputFieldButton(title='Совпадает', data=None)]],
     )
   
-  def make_url_input_field(self, on_field_entered: Callable) -> TgInputField:
+  def makeUrlInputField(self, on_field_entered: Callable) -> TgInputField:
     return TgInputField(
       tg=self.tg,
       chat=self.chat,
