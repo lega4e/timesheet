@@ -2,8 +2,8 @@ import datetime as dt
 import locale
 
 from src.domain.locator import glob
-from src.domain.tg.api import send_message
-from src.domain.tg.tg_chat import TgChat
+from src.utils.tg.send_message import send_message
+from src.utils.tg.tg_destination import TgDestination
 from src.entities.event.event import Event
 from src.entities.message_maker.message_maker import get_event_line
 from src.utils.repeater import Repeater, Period, PeriodRepeater
@@ -55,12 +55,6 @@ def print_lira_objs():
   for cat in lira.cats():
     print(cat)
     
-def send_to_topic():
-  send_message(tg=tg, text='Я убился!', chat_id=TgChat(type=TgChat.TOPIC,
-                                                       chat_id=-1001620091980,
-                                                       topic_id=21867,
-                                                       message_id=24180))
-  
 def make_lira_repeater():
   repeater = PeriodRepeater(
     action=lambda: print('TICK'),

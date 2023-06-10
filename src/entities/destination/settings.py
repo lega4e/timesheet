@@ -1,6 +1,6 @@
 from typing import Any, List, Set
 
-from src.domain.tg.piece import Pieces
+from src.utils.tg.piece import Pieces
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
 

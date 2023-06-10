@@ -1,15 +1,19 @@
 import random
+from copy import copy
 from typing import Callable, Optional
 
 from telebot import TeleBot
 from telebot.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from src import TgChat
-from src.domain.tg.api import send_message
-from src.utils.tg.tg_state import TgState
+from .send_message import send_message
+from .tg_destination import TgDestination
+from .tg_state import TgState
 
 
 class BranchButton:
+  """
+  Кнопка, по нажатию на которую устанавливается подсостояние
+  """
   def __init__(
     self,
     title: str,
@@ -17,6 +21,15 @@ class BranchButton:
     action: Callable = None,
     callback_answer: str = None
   ):
+    """
+    :param title: строка, которая будет отображатся на кнопке
+    
+    :param state: состояние, которое будет остановлено после нажатия на кнопку
+    
+    :param action: действие, которое будет вызвано, по нажатию на кнопку
+    
+    :param callback_answer: сообщение, которое нарисуется пользователю в инфо-шторке
+    """
     self.title = title
     self.state = state
     self.action = action
@@ -25,10 +38,16 @@ class BranchButton:
 
 
 class TgStateBranch(TgState):
+  """
+  Сообщение в телеграмме, под которым есть кнопки; нажав на любую из кнопок будет установлено соответствующее
+  подсостояние; как только это состояние завершится, будет снова установлено корневое состояние. Если будет
+  нажата другая кнопка до того, как предыдущее подсостояние не завершится, оно будет прервано и установлено новое.
+  Вместо установки новых состояний можно назначать коллбэки
+  """
   def __init__(
     self,
     tg: TeleBot,
-    chat,
+    chat: TgDestination,
     make_buttons: Callable,
     make_message: Callable,
     on_terminate: Callable = None,
@@ -74,6 +93,7 @@ class TgStateBranch(TgState):
 
   # MAIN
   def updateMessage(self):
+    """Вызовите, если нужно обновить корневое сообщение"""
     self._translateMessage()
 
 
@@ -90,8 +110,10 @@ class TgStateBranch(TgState):
   
   def _translateMessage(self):
     self.buttons = self.makeButtons()
+    chat = copy(self.chat)
+    chat.translateToMessageId = self.messageId
     kwargs = {
-      'chat_id': TgChat(type=TgChat.PUBLIC, chat_id=self.chat, message_id=self.messageId),
+      'chat': chat,
       'text': self.makeMessage(),
       'reply_markup': self._makeMarkup(),
     }

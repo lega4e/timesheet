@@ -3,19 +3,14 @@ from typing import List, Union
 
 from telebot import TeleBot
 
-from src.domain.locator import Locator, LocatorStorage
-from src.domain.tg.piece import Pieces, P
+from src.utils.tg.piece import Pieces, P
 
 
-class FLogger(LocatorStorage):
-  def __init__(
-    self,
-    locator: Locator,
-  ):
-    super().__init__(locator)
-    self.logger: Logger = self.locator.logger()
-    self.tg: TeleBot = self.locator.tg()
-    self.chats: List[int] = self.locator.config().loggingDefaultChats()
+class FLogger:
+  def __init__(self, tg: TeleBot, chats: List[int], logger: Logger):
+    self.logger = logger
+    self.tg = tg
+    self.chats = chats
 
   def info(self, message, *args, **kwargs):
     self.logger.info(message, *args, **kwargs)

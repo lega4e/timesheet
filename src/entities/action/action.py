@@ -2,7 +2,7 @@ import datetime as dt
 
 from typing import Any
 
-from src.domain.tg.tg_chat import TgChat
+from src.utils.tg.tg_destination import TgDestination
 from src.utils.notifier import Notifier
 from src.utils.repeater import Period
 
@@ -37,7 +37,7 @@ class ActionTgAutoForward(Action):
     id: int,
     creator: int,
     period: Period,
-    chat: TgChat,
+    chat: TgDestination,
     timesheet_id: int,
     last_update: dt.datetime = None,
     translation_id: int = None,

@@ -8,7 +8,7 @@ from chakert import Typograph
 from telebot.types import Message
 
 from src.entities.event.event_fields_parser import parse_datetime, correct_datetime
-from src.domain.tg.piece import Pieces, P
+from src.utils.tg.piece import Pieces, P
 
 
 
@@ -28,22 +28,37 @@ class ValidatorObject:
 
 
 class Validator:
+  """
+  Класс, который 1) проверяет значение на корректность, 2) меняет его, если надо
+  """
   def validate(self, o: ValidatorObject) -> ValidatorObject:
+    """
+    Основная функция, возвращает результат валидации
+    """
     return self._validate(copy(o))
 
   @abstractmethod
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
+    """
+    Сама проверка, должна быть переопределена в конкретных классах
+    """
     pass
 
 
 
 class TextValidator(Validator):
+  """
+  Ничего не проверяет, только улучшает текст с помощью типографа
+  """
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
     o.data = Typograph('ru').typograph_text(o.message.text, 'ru')
     return o
 
 
 class FunctionValidator(Validator):
+  """
+  Позволяет задать валидатор не классом, а функцией
+  """
   def __init__(self, function: Callable):
     self.function = function
   
@@ -53,6 +68,9 @@ class FunctionValidator(Validator):
   
   
 class ChainValidator(Validator):
+  """
+  Логическое "и" при валидации (последовательно вызывает несколько валидаторов)
+  """
   def __init__(self, validators: [Validator]):
     self.validators = validators
   
@@ -66,6 +84,9 @@ class ChainValidator(Validator):
   
 
 class OrValidator(Validator):
+  """
+  Логическое "или" при валидации (выбираем первый попавшийся валидатор)
+  """
   def __init__(self, validators: [Validator]):
     self.validators = validators
   
@@ -80,11 +101,14 @@ class OrValidator(Validator):
   
   
 class IntValidator(Validator):
+  """
+  Проверяет, что введённое значение число, преобразует к типу int
+  """
   def __init__(self, error: str = None):
     self.error = error or P('Нужно ввести просто число', emoji='warning')
 
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
-    if re.match(r'^\d+$', o.message.text) is None:
+    if re.match(r'^-?\d+$', o.message.text) is None:
       o.success, o.error = False, self.error
     else:
       o.data = int(o.message.text)
@@ -93,12 +117,11 @@ class IntValidator(Validator):
 
 
 class PieceValidator(Validator):
-  def __init__(self, let_none = True):
-    self.letNone = let_none
-    
+  """
+  Ничего не проверяет, преобразует обрабатываемое сообщение в Pieces
+  """
   def _validate(self, o: ValidatorObject) -> ValidatorObject:
-    o.data = (None if self.letNone and o.message.text.lower() in ['none', 'нет']
-              else Pieces.fromMessage(o.message.text, o.message.entities))
+    o.data = Pieces.fromMessage(o.message.text, o.message.entities)
     return o
 
 
@@ -230,9 +253,9 @@ class WordListValidator(Validator):
   def __init__(self, error: str = None):
     self.error = error or (
       P('Что-то не так :( ожидается список слов; '
-            'слова могут содержать только буквы, цифры и '
-            'символы нижнего подчёркивания; слова отделяётся '
-            'друг от друга пробелом и ничем больше. Например:\n',
+        'слова могут содержать только буквы, цифры и '
+        'символы нижнего подчёркивания; слова отделяётся '
+        'друг от друга пробелом и ничем больше. Например:\n',
         emoji='fail'),
       P('я_не_хочу_это_постить куй 666 ругательство', types='code'),
     )

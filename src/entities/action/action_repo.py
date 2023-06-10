@@ -11,8 +11,8 @@ Key = int
 
 class ActionRepo(LiraRepo):
   def __init__(self, locator: Locator):
-    super().__init__(locator, lira_cat='action')
-    self.executor = self.locator.actionExecutor()
+    super().__init__(locator.lira(), lira_cat='action')
+    self.executor = locator.actionExecutor()
     self.actionIsStarted = False
     self.repeaters = []
   
@@ -37,9 +37,6 @@ class ActionRepo(LiraRepo):
     self.repeaters.append(repeater)
     repeater.start()
 
-  def putWithId(self, value: T):
-    raise Exception('Unimplemented error')
-  
   def remove(self, key: Key) -> Optional[T]:
     action = self.find(key)
     if action is not None:

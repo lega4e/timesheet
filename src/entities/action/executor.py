@@ -32,7 +32,7 @@ class ActionExecutor(LocatorStorage):
   def _tgAutoForward(self, action: ActionTgAutoForward):
     logger = self.locator.flogger()
     timesheet: Timesheet = self.timesheetRepo.find(action.timesheetId)
-    destination: Destination = self.destinationRepo.findByChat(action.chat.chatId)
+    destination: Destination = self.destinationRepo.findByChatId(action.chat.chatId)
     if timesheet is None:
       logger.info(f'auto post to {action.chat.chatId} no timesheet')
       return
@@ -43,13 +43,14 @@ class ActionExecutor(LocatorStorage):
                                    message_id=tr.messageId)
         tr.emitDestroy('remove by autoforward')
       action.translationId = None
-    tr = self.translationRepo.putWithId(lambda id: Translation(
+    tr = Translation(
       locator=self.locator,
-      id=id,
+      id=self.translationRepo.newId(),
       destination=destination,
       timesheet_id=timesheet.id,
       creator=action.creator,
-    ))
+    )
+    self.translationRepo.put(tr)
     try:
       self.tg.pin_chat_message(chat_id=tr.destination.chat.chatId,
                                message_id=tr.messageId)

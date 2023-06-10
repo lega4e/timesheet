@@ -58,7 +58,11 @@ class Locator:
   def flogger(self):
     if self._flogger is None:
       from src.utils.logger.logger import FLogger
-      self._flogger = FLogger(self)
+      self._flogger = FLogger(
+        tg=self.tg(),
+        chats=self.config().loggingDefaultChats(),
+        logger=self.logger(),
+      )
     return self._flogger
   
   def lira(self):
@@ -84,7 +88,10 @@ class Locator:
   def loggerStream(self):
     if self._loggerStream is None:
       from src.utils.logger.telegram_logger_stream import TelegramLoggerStream
-      self._loggerStream = TelegramLoggerStream(self)
+      self._loggerStream = TelegramLoggerStream(
+        chats=self.config().loggingDefaultChats(),
+        tg=self.tg()
+      )
     return self._loggerStream
   
   def messageMaker(self):

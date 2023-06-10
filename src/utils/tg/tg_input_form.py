@@ -4,13 +4,16 @@ from typing import List, Callable
 from telebot import TeleBot
 from telebot.types import CallbackQuery, Message
 
-from src.domain.tg.api import send_message
-from src.utils.tg.tg_input_field import TgInputField
-from src.utils.tg.tg_state import TgState
-from src.utils.utils import CallbackWrapper
+from ..utils import CallbackWrapper
+from .send_message import send_message
+from .tg_input_field import TgInputField
+from .tg_state import TgState
 
 
 class TgInputForm(TgState):
+  """
+  Формочка, в которой последовательно вводятся некоторые данные
+  """
   def __init__(
     self,
     tg: TeleBot,
@@ -19,6 +22,13 @@ class TgInputForm(TgState):
     fields: List[TgInputField],
     terminate_message: str = None,
   ):
+    """
+    :param tg: Телебот, для общения с пользователем (отправка и редактировать сообщений)
+    :param chat: чат, где происходит общение
+    :param on_form_entered: коллбэк, вызывающийся, когда все поля формы заполнены
+    :param fields: поля, которые нужно заполнить
+    :param terminate_message: сообщение, выводящееся, если ввод формы прерван
+    """
     super().__init__(on_enter_state=self._onEnterState)
     assert(len(fields) != 0)
     self.tg = tg
@@ -39,7 +49,7 @@ class TgInputForm(TgState):
   def _onTerminate(self):
     if self.terminate_message is not None:
       send_message(tg=self.tg,
-                   chat_id=self.chat,
+                   chat=self.chat,
                    text=self.terminate_message)
 
   def _handleMessage(self, m: Message) -> bool:

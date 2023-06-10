@@ -6,9 +6,9 @@ from src.entities.commands_manager.commands import global_command_list
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
-from src.entities.message_maker.emoji import Emoji, get_emoji
+from src.utils.tg.tg_emoji import Emoji, get_emoji
 from src.entities.message_maker.help import *
-from src.domain.tg.piece import P, Pieces
+from src.utils.tg.piece import P, Pieces
 from src.entities.timesheet.timesheet import Timesheet
 from src.utils.utils import reduce_list, insert_between
 

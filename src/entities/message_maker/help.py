@@ -1,4 +1,4 @@
-from src.domain.tg.piece import P
+from src.utils.tg.piece import P
 
 
 help_head = (

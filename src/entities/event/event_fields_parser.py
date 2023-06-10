@@ -1,7 +1,7 @@
 import datetime as dt
 import re
 
-from src.domain.tg.piece import P, Pieces
+from src.utils.tg.piece import P, Pieces
 
 
 def parse_datetime(text: str) -> (dt.datetime, Pieces):

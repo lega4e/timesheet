@@ -1,6 +1,6 @@
 from typing import Callable, Any
 
-from src.domain.locator import Locator
+from src.domain.locator import Locator, LocatorStorage
 from src.entities.timesheet.timesheet import Timesheet
 from src.utils.lira_repo import LiraRepo
 
@@ -9,9 +9,10 @@ T = Timesheet
 Key = int
 
 
-class TimesheetRepo(LiraRepo):
+class TimesheetRepo(LiraRepo, LocatorStorage):
   def __init__(self, locator: Locator):
-    super().__init__(locator, lira_cat='timesheet')
+    LocatorStorage.__init__(self, locator)
+    LiraRepo.__init__(self, self.locator.lira(), lira_cat='timesheet')
 
   def valueToSerialized(self, value: T) -> {str: Any}:
     return value.serialize()

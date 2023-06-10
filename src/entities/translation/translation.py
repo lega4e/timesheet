@@ -1,5 +1,5 @@
 import traceback
-from copy import deepcopy
+from copy import copy
 
 from typing import Any, Callable, Optional
 
@@ -7,15 +7,14 @@ from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
 
 from src.domain.locator import LocatorStorage, Locator
-from src.domain.tg.tg_chat import TgChat
 from src.entities.destination.destination import Destination
 from src.entities.destination.destination_repo import DestinationRepo
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.entities.event.event_fields_parser import datetime_today
-from src.domain.tg.api import send_message
+from src.utils.tg.send_message import send_message
 from src.entities.message_maker.message_maker import MessageMaker
-from src.domain.tg.piece import Pieces
+from src.utils.tg.piece import Pieces
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepo
 from src.utils.logger.logger import FLogger
@@ -88,7 +87,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
       try:
         self.messageId = send_message(
           tg=self.tg,
-          chat_id=self.destination.chat,
+          chat=self.destination.chat,
           text=message,
           disable_web_page_preview=True,
         ).message_id
@@ -115,7 +114,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
 
   def _translate(self) -> bool:
     logger = self.locator.flogger()
-    logger_title = self.destination.getUrl(message_id=self.messageId)
+    logger_title = 'Translate ' + self.destination.getUrl(message_id=self.messageId)
     timesheet = self._findAndCheckTimesheet()
     if timesheet is None:
       return False
@@ -123,11 +122,11 @@ class Translation(Notifier, LocatorStorage, Serializable):
     if pieces is None:
       return False
     try:
-      chat: TgChat = deepcopy(self.destination.chat)
-      chat.messageId = self.messageId
+      chat = copy(self.destination.chat)
+      chat.translateToMessageId = self.messageId
       send_message(
         tg=self.tg,
-        chat_id=chat,
+        chat=chat,
         text=pieces,
         disable_web_page_preview=True,
       )
@@ -169,10 +168,9 @@ class Translation(Notifier, LocatorStorage, Serializable):
     )
   
   def _getLoggerTitle(self):
-    chat_id_str = (str(self.destination.chat)
-                   if isinstance(self.destination.chat, int) else
-                   self.destination.chat[1:])
-    return f'Translate to t.me/{chat_id_str}/{self.messageId}'
+    chat = copy(self.destination.chat)
+    chat.translateToMessageId = self.messageId
+    return f'Translate to {chat.translateToMessageId}'
   
   def findTimesheet(self) -> Optional[Timesheet]:
     return self.timesheetRepo.find(self.timesheetId)

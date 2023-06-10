@@ -15,8 +15,8 @@ from src.entities.event.event import Place, Event
 from src.entities.event.event_fields_parser import datetime_today
 from src.entities.event.event_repository import EventRepo
 from src.entities.event.event_tg_maker import TgEventInputFieldsConstructor
-from src.domain.tg.api import send_message
-from src.entities.message_maker.emoji import Emoji, get_emoji
+from src.utils.tg.send_message import send_message
+from src.utils.tg.tg_emoji import Emoji, get_emoji
 from src.entities.message_maker.message_maker import MessageMaker
 from src.entities.timesheet.timesheet import Timesheet
 from src.entities.timesheet.timesheet_repository import TimesheetRepo
@@ -190,8 +190,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return
     
     def on_form_entered(data: []):
-      event = self.eventRepo.putWithId(lambda id: Event(
-        id=id,
+      event = self.eventRepo.put(Event(
+        id=self.eventRepo.newId(),
         desc=data[0],
         start=data[1],
         finish=None,
@@ -230,8 +230,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
         start += dt.timedelta(weeks=1)
         if start >= datetime_today():
           break
-      event = self.eventRepo.putWithId(lambda id: Event(
-        id=id,
+      event = self.eventRepo.put(Event(
+        id=self.eventRepo.newId(),
         desc=data.desc,
         start=start,
         finish=None,
@@ -388,9 +388,9 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     def on_form_entered(data: []):
       name = data[0]
       pswd = data[1]
-      timesheet = self.timesheetRepo.putWithId(lambda id: Timesheet(
+      timesheet = self.timesheetRepo.put(Timesheet(
         locator=self.locator,
-        id=id,
+        id=self.timesheetRepo.newId(),
         name=name,
         password=pswd,
       ))
@@ -592,7 +592,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
   # destination commands
   def handleSetDestination(self):
     def on_field_entered(data: str):
-      self.destination = self.destinationRepo.findByChat(data)
+      self.destination = self.destinationRepo.findByChatId(data)
       self.send(f'Успешное подключение к {data}', emoji='ok')
       self.resetTgState()
       self.notify()
@@ -757,7 +757,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       tr = self.translationRepo.putWithId(lambda id: Translation(
         locator=self.locator,
         id=id,
-        destination=self.destinationRepo.findByChat(data[0]),
+        destination=self.destinationRepo.findByChatId(data[0]),
         timesheet_id=self.timesheetId,
         message_id=data[1],
         creator=self.chat,
@@ -911,7 +911,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       message = P(message, emoji=emoji)
     send_message(
       tg=self.tg,
-      chat_id=self.chat,
+      chat=self.chat,
       text=message,
       disable_web_page_preview=True,
     )

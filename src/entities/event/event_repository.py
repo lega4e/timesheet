@@ -11,7 +11,7 @@ Key = int
 
 class EventRepo(LiraRepo):
   def __init__(self, locator: Locator):
-    super().__init__(locator, lira_cat='event')
+    super().__init__(locator.lira(), lira_cat='event')
 
   def valueToSerialized(self, value: T) -> {str: Any}:
     return value.serialize()

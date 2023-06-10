@@ -2,6 +2,7 @@ from copy import copy
 from typing import Any
 
 from src.domain.tg.tg_chat import TgChat
+from src.utils.tg.tg_destination import TgDestination
 from src.entities.destination.settings import DestinationSettings
 from src.utils.notifier import Notifier
 from src.utils.serialize import Serializable
@@ -14,7 +15,7 @@ class Destination(Notifier, Serializable):
   def __init__(
     self,
     id: int = None,
-    chat: TgChat = None,
+    chat: TgDestination = None,
     sets: DestinationSettings = None,
     serialized: {str, Any} = None,
   ):
@@ -39,11 +40,15 @@ class Destination(Notifier, Serializable):
     self.id = serialized['id']
     self.chat = serialized['chat']
     if isinstance(self.chat, int) or isinstance(self.chat, str):
-      self.chat = TgChat(type=TgChat.PUBLIC, chat_id=self.chat)
+      self.chat = TgDestination(chat_id=self.chat)
+    elif isinstance(self.chat, TgChat):
+      self.chat = TgDestination(chat_id=self.chat.chatId,
+                                message_to_replay_id=self.chat.topicId,
+                                translate_to_message_id=self.chat.messageId)
     self.sets = DestinationSettings(serialized=serialized['sets'])
     
   def getUrl(self, message_id: int = None):
     chat = copy(self.chat)
-    chat.messageId = message_id
+    chat.translateToMessageId = message_id
     return chat.getUrl()
 

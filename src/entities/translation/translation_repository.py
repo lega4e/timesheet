@@ -1,6 +1,6 @@
 from typing import Callable, Any, Optional, List
 
-from src.domain.locator import Locator
+from src.domain.locator import Locator, LocatorStorage
 from src.entities.translation.translation import Translation
 from src.utils.lira_repo import LiraRepo
 
@@ -9,9 +9,11 @@ T = Translation
 Key = int
 
 
-class TranslationRepo(LiraRepo):
+
+class TranslationRepo(LocatorStorage, LiraRepo):
   def __init__(self, locator: Locator):
-    super().__init__(locator, lira_cat='translation')
+    LocatorStorage.__init__(self, locator)
+    LiraRepo.__init__(self, self.locator.lira(), lira_cat='translation')
     for tr in [tr for _, tr in self.values.values()]:
       tr.connect()
 
