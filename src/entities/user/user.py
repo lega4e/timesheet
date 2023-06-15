@@ -37,6 +37,7 @@ from src.utils.tg.utils import list_to_layout
 from src.utils.tg.value_validators import *
 from src.utils.utils import insert_between, reduce_list
 
+import src.entities.message_maker.piece
 
 class User(Notifier, TgState, Serializable, LocatorStorage):
   def __init__(

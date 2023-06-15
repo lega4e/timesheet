@@ -1,4 +1,6 @@
 import datetime as dt
+import src.utils.tg.piece as piece
+
 from typing import Optional, List
 
 from src.domain.locator import LocatorStorage, Locator
@@ -8,13 +10,9 @@ from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
 from src.utils.tg.tg_emoji import Emoji, get_emoji
 from src.entities.message_maker.help import *
-from src.utils.tg.piece import P, Pieces, _Piece
+from src.utils.tg.piece import P, Pieces
 from src.entities.timesheet.timesheet import Timesheet
 from src.utils.utils import reduce_list, insert_between
-
-Pieces = Pieces
-_Piece = _Piece
-
 
 class MessageMaker(LocatorStorage):
   def __init__(self, locator: Locator):
