@@ -1,7 +1,9 @@
 from typing import Union
 
+from src.utils.copy_with import CopyWith
 
-class TgDestination:
+
+class TgDestination(CopyWith):
   """
   Представляет собой чат или топик, куда может быть отправлено сообщение; либо
   само сообщение, которое должно быть обновлено

@@ -110,11 +110,9 @@ class TgStateBranch(TgState):
   
   def _translateMessage(self):
     self.buttons = self.makeButtons()
-    chat = copy(self.chat)
-    chat.translateToMessageId = self.messageId
     kwargs = {
-      'chat': chat,
+      'chat': self.chat.copyWith(translateToMessageId=self.messageId),
       'text': self.makeMessage(),
       'reply_markup': self._makeMarkup(),
     }
-    self.messageId = send_message(tg=self.tg, **kwargs).message_id
+    self.messageId = send_message(tg=self.tg, **kwargs)[0].message_id

@@ -90,7 +90,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
           chat=self.destination.chat,
           text=message,
           disable_web_page_preview=True,
-        ).message_id
+        )[0].message_id
       except Exception as e:
         self.emitDestroy(f'exception on send message: {e}')
         return False
@@ -129,6 +129,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
         chat=chat,
         text=pieces,
         disable_web_page_preview=True,
+        ignore_message_not_edited=False,
       )
       logger.info(f'{logger_title} success')
       return True

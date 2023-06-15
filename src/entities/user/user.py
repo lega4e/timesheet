@@ -8,6 +8,7 @@ from typing import Optional, Any
 
 from src.domain.locator import LocatorStorage, Locator
 from src.domain.post_parser import parse_post
+from src.domain.tg.tg_destination import TgDestination
 from src.entities.action.action import Action, ActionTgAutoForward
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
@@ -1062,7 +1063,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     constructor = TgEventInputFieldsConstructor(tg=self.tg, chat=self.chat)
     state = TgStateBranch(
       tg=self.tg,
-      chat=self.chat,
+      chat=TgDestination(chat_id=self.chat),
       make_buttons=lambda: [
         [BranchButton(
           'Название',

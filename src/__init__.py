@@ -2,7 +2,6 @@ import datetime as dt
 import locale
 
 from src.domain.locator import glob
-from src.utils.tg.send_message import send_message
 from src.utils.tg.tg_destination import TgDestination
 from src.entities.event.event import Event
 from src.entities.message_maker.message_maker import get_event_line
