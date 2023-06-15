@@ -1,0 +1,8 @@
+[project]
+name = "timesheet-bot"
+version = "1.0.0"
+authors = [
+  { name="leag4e", email="lega4e@lega4e.ru" },
+]
+description = "Timesheet bot"
+requires-python = ">=3.9"

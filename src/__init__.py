@@ -8,6 +8,7 @@ from src.entities.event.event import Event
 from src.entities.message_maker.message_maker import get_event_line
 from src.utils.repeater import Repeater, Period, PeriodRepeater
 
+
 locator = glob()
 tg = locator.tg()
 log = locator.flogger()
