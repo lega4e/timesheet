@@ -46,6 +46,16 @@ class Validator:
 
 
 
+class FalseValidator(Validator):
+  """
+  Всегда ошибка
+  """
+  def _validate(self, o: ValidatorObject) -> ValidatorObject:
+    o.success = False
+    return o
+
+
+
 class TextValidator(Validator):
   """
   Ничего не проверяет, только улучшает текст с помощью типографа

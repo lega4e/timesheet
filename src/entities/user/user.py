@@ -3,13 +3,14 @@ import datetime as dt
 from copy import deepcopy
 
 from telebot import TeleBot
-from telebot.types import CallbackQuery
+from telebot.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from typing import Optional, Any
 
 from src.domain.locator import LocatorStorage, Locator
 from src.domain.post_parser import parse_post
 from src.domain.tg.tg_destination import TgDestination
 from src.entities.action.action import Action, ActionTgAutoForward
+from src.entities.commands_manager.commands import CommandDescription, global_command_list
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Place, Event
@@ -32,6 +33,7 @@ from src.utils.tg.tg_input_field import TgInputField, InputFieldButton
 from src.utils.tg.tg_input_form import TgInputForm
 from src.utils.tg.tg_state import TgState
 from src.utils.tg.tg_state_branch import TgStateBranch, BranchButton
+from src.utils.tg.utils import list_to_layout
 from src.utils.tg.value_validators import *
 from src.utils.utils import insert_between, reduce_list
 
@@ -73,7 +75,8 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     pass
 
   def _handleMessage(self, m: Message):
-    self.send('Непонятно.. что ты хочешь..? напиши /help', emoji='fail')
+    self.send('Непонятно.. что ты хочешь..? напиши /commands или /help',
+              emoji='fail')
     
   def _handleMessageBefore(self, m: Message) -> bool:
     if m.forward_from_chat is not None or m.forward_from is not None:
@@ -81,12 +84,17 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       return True
     if m.text is not None and m.text[0] == '/':
       self.terminateSubstate()
-      self.send('Неизвестная команда..', emoji='fail')
+      self.send('Неизвестная команда.. попробуй /commands', emoji='fail')
       return True
     return False
 
   def _handleCallbackQuery(self, q: CallbackQuery):
-    self.tg.answer_callback_query(q.id, text='Непонятно..')
+    coms = [c for c in global_command_list if q.data == c.preview]
+    if len(coms) > 0:
+      self.handle(coms[0])
+      self.tg.answer_callback_query(q.id, text=coms[0].short)
+    else:
+      self.tg.answer_callback_query(q.id, text='Непонятно..')
 
   def serialize(self) -> {str : Any}:
     return {
@@ -102,6 +110,10 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
 
   # HANDLERS FOR TELEGRAM
+  def handle(self, command: CommandDescription):
+    self.locator.flogger().info(f'handle {command.preview}')
+    exec(f'self.{command.userCommand}()')
+  
   def handleForward(self, m: Message):
     answer = parse_post(m)
     if answer.datetime is None and answer.url is None and answer.name is None:
@@ -177,12 +189,59 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   def handleStart(self):
     self.terminateSubstate()
-    self.send('Приветствуют тебя, мастер, заведующий расписанием!')
+    self.send('Приветствуют тебя! Для начала тебе нужно подключиться'
+              'к расписанию (/set_timesheet) или создать своё (/make_timesheet).'
+              'Чтобы увидеть меню команд введи /commands. И помню: расписатель'
+              'живёт в каждом из нас ;)')
 
   def handleHelp(self):
     self.terminateSubstate()
     self.send(message=self.msgMaker.help())
+
+  def handleCommands(self):
+    self._handleCommandPage([['/events', '/destination'],
+                             ['/timesheet', '/help']])
+
+  def handleEvents(self):
+    self._handleCommandPage([
+      ['/make_event', '/replay'],
+      ['/remove_event', '/edit_event'],
+      ['/show_events'],
+    ])
+
+  def handleDestination(self):
+    self._handleCommandPage([
+      ['/show_destination', '/set_destination'],
+      ['/show_destination_info', '/autoposts'],
+      ['/translate'],
+      ['/translate_to_message'],
+    ])
+
+  def handleAutoposts(self):
+    self._handleCommandPage([
+      ['/show_autoposts'],
+      ['/make_autopost', '/remove_autopost'],
+    ])
+
+  def handleTimesheet(self):
+    self._handleCommandPage([
+      ['/make_timesheet', '/set_timesheet'],
+      ['/show_timesheet_info', '/translations'],
+      ['/places_and_orgs'],
+    ])
     
+  def handlePlacesAndOrgs(self):
+    self._handleCommandPage([
+      ['/show_places', '/set_places'],
+      ['/show_orgs', '/set_orgs'],
+    ])
+
+  def handleTranslations(self):
+    self._handleCommandPage([
+      ['/show_translations'],
+      ['/remove_translation'],
+      ['/clear_translations'],
+    ])
 
   # event commands
   def handleMakeEvent(self):
@@ -433,7 +492,14 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   def handleShowTimesheetInfo(self):
     self.terminateSubstate()
-    self.send(self.msgMaker.timesheet(self.findTimesheet()))
+    self.send(
+      self.msgMaker.timesheet(self.findTimesheet()),
+      reply_markup=coms2markup([
+        ['/set_timesheet'],
+        ['/set_timesheet_head', '/set_timesheet_tail'],
+        ['/set_timesheet_event_format']
+      ]),
+    )
 
   def handleSetTimesheet(self):
     tm = {}
@@ -606,10 +672,25 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       terminate_message='Установка канала прервана',
       on_field_entered=on_field_entered,
     ))
+    
+  def handleShowDestination(self):
+    self.resetTgState()
+    if self.destination is not None:
+      self.send(self.destination.chat.getUrl(), emoji=Emoji.POINT_RIGHT)
+    else:
+      self.send('А такого нет', emoji='fail')
 
   def handleShowDestinationInfo(self):
     self.terminateSubstate()
-    self.send(self.msgMaker.destination(self.destination))
+    self.send(
+      self.msgMaker.destination(self.destination),
+      reply_markup=coms2markup([
+          ['/set_destination'],
+          ['/set_destination_head', '/set_destination_tail'],
+          ['/set_destination_black_list', '/set_destination_words_black_list'],
+          ['/set_destination_event_format']
+      ])
+    )
     
   def handleSetDestinationHead(self):
     self.terminateSubstate()
@@ -907,7 +988,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
     ))
 
   # OTHER
-  def send(self, message, emoji: str = None):
+  def send(self, message, emoji: str = None, reply_markup = None):
     if isinstance(message, str):
       message = P(message, emoji=emoji)
     send_message(
@@ -915,6 +996,7 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       chat=self.chat,
       text=message,
       disable_web_page_preview=True,
+      reply_markup=reply_markup,
     )
     
   def findTimesheet(self) -> Optional[Timesheet]:
@@ -922,6 +1004,24 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
             if self.timesheetId is None else
             self.timesheetRepo.find(self.timesheetId))
 
+  def _handleCommandPage(self, coms):
+    def on_field_entered(command: CommandDescription):
+      self.handle(command)
+      self.resetTgState()
+  
+    coms = [[com(c) for c in row] for row in coms]
+    pieces = self.msgMaker.pageWithCommands(
+      reduce_list(lambda a, b: a + b, coms, [])
+    )
+    self.setTgState(TgInputField(
+      tg=self.tg,
+      chat=self.chat,
+      greeting=pieces,
+      greeting_emoji=None,
+      validator=FalseValidator(),
+      on_field_entered=on_field_entered,
+      buttons=[[com2button(c) for c in row] for row in coms],
+    ))
 
   # checks
   def _checkTimesheet(self) -> bool:
@@ -1113,3 +1213,25 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
 def default_event_predicat(event: Event) -> bool:
   return event.start >= datetime_today()
+
+def com(preview: str) -> CommandDescription:
+  return [c for c in global_command_list if c.preview == preview][0]
+
+def com2button(command: CommandDescription) -> InputFieldButton:
+  return InputFieldButton(
+    title=command.short,
+    data=command,
+    answer=command.short,
+    qb=command.preview,
+  )
+
+def coms2markup(commands: List[List[str]]) -> InlineKeyboardMarkup:
+  markup = InlineKeyboardMarkup()
+  commands = [[com(c) for c in row] for row in commands]
+  for row in commands:
+    markup.add(*[
+      InlineKeyboardButton(text=c.short, callback_data=c.preview)
+      for c in row
+    ])
+  return markup
+    

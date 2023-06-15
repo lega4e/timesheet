@@ -14,7 +14,10 @@ def button_row_layout(count: int) -> List[int]:
           [3] + button_row_layout(count-3))
 
 
-def list_to_layout(elems: [], transform: Callable) -> List[List]:
+def list_to_layout(
+  elems: [],
+  transform: Callable = lambda x: x
+) -> List[List]:
   """
   Распределяет элементы по рядам, чтобы было красиво:
   8 элементов:   7 элементов:

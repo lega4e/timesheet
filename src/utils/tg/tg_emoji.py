@@ -24,4 +24,4 @@ def get_emoji(emoji: str = None):
     'infoglob': Emoji.CAKE,
     'translation': Emoji.OFFICER,
     'place': Emoji.SPIKE,
-  }.get(emoji)
+  }.get(emoji, emoji)

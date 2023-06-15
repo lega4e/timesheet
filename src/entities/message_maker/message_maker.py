@@ -1,8 +1,8 @@
 import datetime as dt
-from typing import Optional
+from typing import Optional, List
 
 from src.domain.locator import LocatorStorage, Locator
-from src.entities.commands_manager.commands import global_command_list
+from src.entities.commands_manager.commands import global_command_list, CommandDescription
 from src.entities.destination.destination import Destination
 from src.entities.destination.settings import DestinationSettings
 from src.entities.event.event import Event
@@ -36,35 +36,40 @@ class MessageMaker(LocatorStorage):
     command: str,
     include_black_lists: bool = True,
   ) -> Pieces:
-    pieces = P(f'{get_emoji("info")} Заголовок /set_{command}_head\n')
+    pieces = P(f'{get_emoji("info")} /set_{command}_head Заголовок \n')
     if sets.head is None:
       pieces += 'Его нет :(\n\n'
     else:
+      pieces += MessageMaker.delimeter() + '\n'
       pieces += sets.head + '\n\n'
 
-    pieces += f'{get_emoji("info")} Подвал /set_{command}_tail\n'
+    pieces += f'{get_emoji("info")} /set_{command}_tail Подвал \n'
     if sets.tail is None:
       pieces += 'Его нет :(\n\n'
     else:
+      pieces += MessageMaker.delimeter() + '\n'
       pieces += sets.tail + '\n\n'
 
     if include_black_lists:
-      pieces += f'{get_emoji("info")} Чёрный список событий /set_{command}_black_list\n'
+      pieces += f'{get_emoji("info")} /set_{command}_black_list Чёрный список событий\n'
       if len(sets.blackList) == 0:
         pieces += 'Пусто!\n\n'
       else:
+        pieces += MessageMaker.delimeter() + '\n'
         pieces += P(', '.join([str(n) for n in sets.blackList]) + '\n\n', types='code')
 
-      pieces += f'{get_emoji("info")} Чёрный список слов /set_{command}_words_black_list\n'
+      pieces += f'{get_emoji("info")} /set_{command}_words_black_list Чёрный список слов\n'
       if len(sets.wordsBlackList) == 0:
         pieces += 'Пусто!\n\n'
       else:
+        pieces += MessageMaker.delimeter() + '\n'
         pieces += P(', '.join(sets.wordsBlackList) + '\n\n', types='code')
       
-    pieces += f'{get_emoji("info")} Формат строки мероприятия /set_{command}_event_format\n'
+    pieces += f'{get_emoji("info")} /set_{command}_event_format Формат строки мероприятия\n'
     if sets.lineFormat is None:
       pieces += 'Обыкновенный'
     else:
+      pieces += MessageMaker.delimeter() + '\n'
       pieces += P(sets.lineFormat, types='code')
 
     return pieces
@@ -75,9 +80,10 @@ class MessageMaker(LocatorStorage):
     if timesheet is None:
       return pieces + 'Его нет\n\n'
     return (pieces +
-      f'\n{get_emoji("info")} Название и пароль /set_timesheet\n' +
-      P(timesheet.name, types='code') + '\n' +
-      P(timesheet.password, types='code') + '\n\n' +
+      f'\n{get_emoji("info")} /set_timesheet Название и пароль\n' +
+      MessageMaker.delimeter() + '\n' +
+      P('Логин:  ' + timesheet.name, types='code') + '\n' +
+      P('Пароль: ' + timesheet.password, types='code') + '\n\n' +
       MessageMaker.destinationSets(timesheet.destinationSets,
                                    include_black_lists=False,
                                    command='timesheet'))
@@ -88,7 +94,8 @@ class MessageMaker(LocatorStorage):
     if destination is None:
       return pieces + 'Его нет\n\n'
     return (pieces +
-            f'\n{get_emoji("info")} Ссыль /set_destination\n' +
+            f'\n{get_emoji("info")} /set_destination Ссыль\n' +
+            MessageMaker.delimeter() + '\n' +
             destination.getUrl() + '\n\n' +
             MessageMaker.destinationSets(destination.sets,
                                          command='destination'))
@@ -142,6 +149,19 @@ class MessageMaker(LocatorStorage):
             (P(current_sets.lineFormat, types='code')
              if current_sets.lineFormat is not None else
              'Отсутствует'))
+  
+  @staticmethod
+  def pageWithCommands(commands: List[CommandDescription]) -> Pieces:
+    return P('\n\n'.join([
+      f'{Emoji.COMMAND} {command.preview} {command.short}\n'
+        + MessageMaker.delimeter()
+        + f'\n{command.long}'
+      for command in commands
+    ]))
+  
+  @staticmethod
+  def delimeter():
+    return '═' * 25
 
 
 def get_event_line(

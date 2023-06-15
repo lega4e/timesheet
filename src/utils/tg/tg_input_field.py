@@ -15,7 +15,7 @@ class InputFieldButton:
   """
   Одна из кнопок, которую можно нажать вместо ручного ввода значения
   """
-  def __init__(self, title: str, data, answer: str = None):
+  def __init__(self, title: str, data, answer: str = None, qb: str = None):
     """
     :param title: какой текст будет отображён на кнопке
     :param data: какое значение будет возвращено как "введённое"
@@ -24,7 +24,7 @@ class InputFieldButton:
     self.title = title
     self.data = data
     self.answer = answer
-    self.qb = str(random.random())
+    self.qb = qb if qb is not None else str(random.random())
 
 
 class TgInputField(TgState):
@@ -43,6 +43,7 @@ class TgInputField(TgState):
     greeting: Union[str, Pieces],
     validator: Validator,
     on_field_entered: Callable,
+    greeting_emoji = 'edit',
     terminate_message: Union[str, Pieces] = None,
     buttons: List[List[InputFieldButton]] = None,
   ):
@@ -73,7 +74,7 @@ class TgInputField(TgState):
     self.buttons = buttons
     if isinstance(greeting, str):
       greeting = P(greeting)
-    greeting.emoji = 'edit'
+    greeting.emoji = greeting_emoji
     super().__init__(lambda: send_message(tg=self.tg,
                                           chat=self.chat,
                                           text=greeting,
@@ -100,9 +101,12 @@ class TgInputField(TgState):
     """
     answer = self.validator.validate(ValidatorObject(message=m))
     if not answer.success:
-      send_message(tg=self.tg,
-                   chat=self.chat,
-                   text=answer.error)
+      if answer.error is not None and answer.error != '':
+        send_message(tg=self.tg,
+                     chat=self.chat,
+                     text=answer.error)
+        return True
+      return False
     else:
       self.onFieldEntered(answer.data)
     return True
