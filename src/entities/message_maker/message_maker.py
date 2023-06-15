@@ -1,5 +1,6 @@
 import datetime as dt
 import src.utils.tg.piece as piece
+piece = piece
 
 from typing import Optional, List
 

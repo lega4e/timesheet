@@ -33,11 +33,8 @@ from src.utils.tg.tg_input_field import TgInputField, InputFieldButton
 from src.utils.tg.tg_input_form import TgInputForm
 from src.utils.tg.tg_state import TgState
 from src.utils.tg.tg_state_branch import TgStateBranch, BranchButton
-from src.utils.tg.utils import list_to_layout
 from src.utils.tg.value_validators import *
 from src.utils.utils import insert_between, reduce_list
-
-import src.entities.message_maker.piece
 
 class User(Notifier, TgState, Serializable, LocatorStorage):
   def __init__(
