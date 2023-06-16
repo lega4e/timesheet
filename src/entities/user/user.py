@@ -959,13 +959,13 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
 
   def handleShowAutoposts(self):
     autoposts = self.actionRepo.findAll(lambda a: a.type == Action.TG_AUTO_FORWARD)
+    autoposts.sort(key=lambda p: p.id)
     if len(autoposts) == 0:
       self.send('А никого :(', emoji='fail')
       return
-    self.send('Список автопостов:'
-              '\n'.join([f'{Emoji.POINT_RIGHT} #{autopost.id} {autopost.chat.chatId} '
-                         f'{autopost.period.point.strftime("%x %R")} every '
-                         f'{int(autopost.period.delta.total_seconds() / 3600 * 1000) / 1000} hours'
+    self.send('\n'.join([f'{Emoji.POINT_RIGHT} #{autopost.id} {autopost.chat.chatId} '
+                         f'{autopost.period.point.strftime("%x %R")} / '
+                         f'{int(autopost.period.delta.total_seconds() / 3600 * 1000) / 1000} h.'
                          for autopost in autoposts]))
     
   def handleRemoveAutopost(self):
