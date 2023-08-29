@@ -1,3 +1,4 @@
+import datetime
 import datetime as dt
 
 from copy import deepcopy
@@ -142,6 +143,12 @@ class User(Notifier, TgState, Serializable, LocatorStorage):
       if answer.datetime is None:
         answer.datetime = data[counter]
         counter += 1
+      if isinstance(data[counter], datetime.datetime):
+        self.send(
+          'Не получилось добавить мероприятия форвардом, давай стандартным путём',
+          emoji='fail'
+        )
+        raise Exception("Can't add event")
       answer.place = Place(data[counter], data[counter+1])
       counter += 2
       if answer.url is None:
