@@ -1,3 +1,4 @@
+import datetime
 import datetime as dt
 import locale
 
@@ -49,7 +50,15 @@ def set_value(value, id, cat):
 def print_events():
   for lira_id in lira['event']:
     event = lira.get(id=lira_id)
-    print(event['id'], event['desc'])
+    if isinstance(event['place'].name, datetime.datetime):
+      print(event['id'], event['desc'], event['place'].name)
+    
+def remove_events():
+  for lira_id in lira['event']:
+    event = lira(lira_id)
+    if isinstance(event['place'].name, datetime.datetime):
+      lira.out(lira_id)
+  lira.flush()
     
 def print_lira_objs():
   for cat in lira.cats():
@@ -83,6 +92,7 @@ def make_autoupdate():
 
 def main():
   set_locale()
+  remove_events()
   locator.commandsManager().addHandlers()
   locator.commandsManager().setMenuCommands()
   locator.actionRepo().startActions()
