@@ -81,7 +81,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
     self._dispose = (timesheet.addListener(lambda _: self._translate()),
                      self.destination.addListener(lambda _: self._translate()))
     if self.messageId is None:
-      message = self._getMessage(timesheet)
+      message = self._getMessage(timesheet, randomTimesheet=self.destination.chat.chatId == -1002139685032)
       if message is None:
         return False
       try:
@@ -118,7 +118,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
     timesheet = self._findAndCheckTimesheet()
     if timesheet is None:
       return False
-    pieces = self._getMessage(timesheet)
+    pieces = self._getMessage(timesheet, randomTimesheet=self.destination.chat.chatId == -1002139685032)
     if pieces is None:
       return False
     try:
@@ -158,7 +158,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
         self.logger.error(traceback.format_exc())
         return False
     
-  def _getMessage(self, timesheet: Timesheet) -> Optional[Pieces]:
+  def _getMessage(self, timesheet: Timesheet, randomTimesheet=False) -> Optional[Pieces]:
     events = list(timesheet.events(predicat=self.eventPredicat))
     if len(events) == 0:
       self.emitDestroy('message is None')
@@ -166,6 +166,7 @@ class Translation(Notifier, LocatorStorage, Serializable):
     return self.msgMaker.timesheetPost(
       events,
       DestinationSettings.merge(timesheet.destinationSets, self.destination.sets),
+      randomTimesheet=randomTimesheet,
     )
   
   def _getLoggerTitle(self):

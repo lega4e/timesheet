@@ -106,6 +106,7 @@ class MessageMaker(LocatorStorage):
   def timesheetPost(
     events: [Event],
     sets: DestinationSettings,
+    randomTimesheet: bool = False,
   ) -> Optional[Pieces]:
     events = list(filter(lambda e: event_predicat(e, sets), events))
     if len(events) == 0:
@@ -125,7 +126,8 @@ class MessageMaker(LocatorStorage):
         paragraph += '\n'
       paragraph += get_event_line(sets.lineFormat or sets.default().lineFormat,
                                   event,
-                                  url=event.url)
+                                  url=event.url,
+                                  randomTimesheet=randomTimesheet)
       if i+1 == len(events) or is_other_day(events[i].start, events[i+1].start):
         paragraphs.append(paragraph)
         new_day = True
@@ -171,6 +173,7 @@ def get_event_line(
   event: Event,
   url: str = None,
   nested: bool = False,
+  randomTimesheet: bool = False,
 ) -> Optional[Pieces]:
   result = P()
   p, i = 0, 0
@@ -187,7 +190,10 @@ def get_event_line(
     elif fmt[i+1] == 's':
       result += event.start.strftime("%H:%M")
     elif fmt[i+1] == 'n':
-      result += P(event.desc, url=url)
+      if '2139685032' in url and not randomTimesheet:
+        result += P(event.desc, url='https://t.me/+mv3RyTBitF1iOWJi')
+      else:
+        result += P(event.desc, url=url)
     elif fmt[i+1] == 'i':
       result += str(event.id)
     elif fmt[i+1] == 'c':

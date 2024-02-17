@@ -20,6 +20,8 @@ class TgDestination(CopyWith):
     
   def getUrl(self):
     chat = str(self.chatId) if isinstance(self.chatId, int) else self.chatId[1:]
+    if chat.startswith('-100'):
+      chat = 'c/' + chat[4:]
     return (f't.me/{chat}' +
             ('' if self.messageToReplayId is None else f'/{self.messageToReplayId}') +
             ('' if self.translateToMessageId is None else f'/{self.translateToMessageId}'))

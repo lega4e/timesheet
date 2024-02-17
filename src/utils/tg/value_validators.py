@@ -195,6 +195,10 @@ class TgMessageUrlValidator(Validator):
     m = re.match(r'^(https?://)?t\.me/(\w+)/(\d+)$', o.message.text)
     if m is not None:
       o.data = ('@' + m.group(2), int(m.group(3)))
+    # https://t.me/c/2139685032/4
+    m = re.match(r'^(https?://)?t\.me/c/(\d+)/(\d+)$', o.message.text)
+    if m is not None:
+      o.data = (-int('100' + m.group(2)), int(m.group(3)))
     else:
       o.success, o.error = False, self.error
     return o
