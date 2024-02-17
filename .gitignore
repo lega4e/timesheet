@@ -1,5 +1,6 @@
 .*
 *.lr
 config.json
+config.*.json
 ./env
 __pycache__
