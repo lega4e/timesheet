@@ -190,7 +190,7 @@ def get_event_line(
     elif fmt[i+1] == 's':
       result += event.start.strftime("%H:%M")
     elif fmt[i+1] == 'n':
-      if '2139685032' in url and not randomTimesheet:
+      if url is not None and '2139685032' in url and not randomTimesheet:
         result += P(event.desc, url='https://t.me/+mv3RyTBitF1iOWJi')
       else:
         result += P(event.desc, url=url)
